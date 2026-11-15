@@ -1,12 +1,10 @@
-![Selection toolbar and animated highlight reveal.](evidence/annotations-motion.gif)
-
 # Annotations
 
 Highlight text and add comments to your Obsidian notes.
 
 Mark a word, a passage, a block, a section, or a complete note. Keep a highlight without a comment. Read your comments in the Annotations side panel.
 
-![Highlighted text in the editor, with its comments in the Annotations panel.](evidence/annotations-overview.png)
+![Selection toolbar and animated highlight reveal.](evidence/annotations-motion.gif)
 
 ## Highlight text
 
