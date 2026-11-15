@@ -1,3 +1,5 @@
+![Selection toolbar and animated highlight reveal.](evidence/annotations-motion.gif)
+
 # Annotations
 
 Highlight text and add comments to your Obsidian notes.
