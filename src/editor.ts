@@ -313,12 +313,24 @@ export function editorExtension(
               for (const mark of marks) {
                 if (!mark.isConnected) continue;
                 this.animations.get(mark)?.cancel();
+                const backgroundImage =
+                  "linear-gradient(to right, var(--comment-tint) 0%, var(--comment-tint) 40%, transparent 60%)";
                 const animation = mark.animate(
                   [
-                    { backgroundSize: "0% 100%" },
-                    { backgroundSize: "100% 100%" },
+                    {
+                      backgroundImage,
+                      backgroundSize: "250% 100%",
+                      backgroundPosition: "100% 0%",
+                      borderBottomColor: "transparent",
+                    },
+                    {
+                      backgroundImage,
+                      backgroundSize: "250% 100%",
+                      backgroundPosition: "0% 0%",
+                      borderBottomColor: "var(--comment-ink)",
+                    },
                   ],
-                  { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+                  { duration: 460, easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
                 );
                 this.animations.set(mark, animation);
                 animation.onfinish = animation.oncancel = () => {
