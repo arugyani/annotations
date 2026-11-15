@@ -1,5 +1,9 @@
 # Performance
 
+Current measurements: [version 1.0.8](PERFORMANCE-1.0.8.md), including raw samples, build hashes, repeated runs, and verification limits.
+
+## Historical optimization pass
+
 The tables below document the version 1.0.0 optimization pass. Version 1.0.1 adds folded metadata and the selection pill; its separate app measurement is [performance-app-1.0.1.json](../evidence/performance-app-1.0.1.json). The anchor engine and bounded reading caches remain in place.
 
 Measured on November 12, 2026 in the isolated Linux workspace, against commit `533f98ca2c6851c4d6d13891907e4b5e09ac0e10`. Both versions use the same synthetic workloads and Obsidian 1.15.1 installation. These are measurements from this machine, not a guarantee for other hardware or mobile devices.

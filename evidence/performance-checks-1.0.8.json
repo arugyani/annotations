@@ -1,0 +1,37 @@
+{
+  "measuredAt": "2026-11-15T16:51:56.172Z",
+  "pluginVersion": "1.0.8",
+  "sourceCommit": "5d407351b435b7d2b9456602829b7c1ec9038d36",
+  "pluginSourceChanged": false,
+  "runtime": "v24.22.1",
+  "platform": "linux",
+  "osRelease": "6.18.57",
+  "architecture": "x64",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "logicalCpus": 5,
+  "assets": {
+    "main.js": {
+      "bytes": 41067,
+      "gzipBytes": 13763,
+      "sha256": "0bbcefa9cd97991e93a0d682c1fa613427c9d1025197d9a4e2d3968c634761fa"
+    },
+    "styles.css": {
+      "bytes": 9228,
+      "gzipBytes": 2255,
+      "sha256": "06c28010511051414adf7ddf92255114fd924d48b143808f767da0e4a2384897"
+    },
+    "manifest.json": {
+      "bytes": 301,
+      "gzipBytes": 209,
+      "sha256": "db7c92a584513ee6a0978b0c10e99fb61a9ceaff31337e7eaf3aba8877d2f783"
+    }
+  },
+  "obsidian": "1.15.1",
+  "checks": [
+    "50 concurrent reading requests share one read and one validated snapshot",
+    "vault modification invalidates cached content",
+    "reading cache evicts older documents beyond its four-note limit",
+    "unrelated note changes do not mutate the active comments UI",
+    "editor scrolling reuses the validated annotation snapshot"
+  ]
+}

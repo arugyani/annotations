@@ -1,6 +1,10 @@
 import { chromium, expect } from "playwright/test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
+import { benchmarkMetadata } from "./benchmark-metadata.mjs";
+const output = process.argv[2];
+if (output && !/^[a-zA-Z0-9.-]+$/.test(output))
+  throw new Error("Invalid output label");
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9223");
 const page = browser
   .contexts()[0]
@@ -104,8 +108,18 @@ const checks = await page.evaluate(async () => {
 });
 assert.equal(checks.length, 5);
 await writeFile(
-  "evidence/performance-checks.json",
-  JSON.stringify({ obsidian: "1.15.1", checks }, null, 2),
+  output
+    ? `evidence/performance-checks-${output}.json`
+    : "evidence/performance-checks.json",
+  JSON.stringify(
+    {
+      ...benchmarkMetadata(),
+      obsidian: await page.evaluate(() => electron.remote.app.getVersion()),
+      checks,
+    },
+    null,
+    2,
+  ),
 );
 console.log(checks.map((c) => "PASS " + c).join("\n"));
 await browser.close();

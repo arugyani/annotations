@@ -8,6 +8,19 @@ We considered inline range markers and sidecars. Inline markers can split Markdo
 
 The label and guide make the format self-describing for people and agents. This is a concrete reading convention, not a guarantee that every model will interpret it correctly. An agent should inspect the document, quotations, context, and attachment state together, and flag mismatches instead of trusting offsets alone.
 
+## File over app
+
+Annotations follows this principle for data ownership: the Markdown file is the source of truth. Comment text, quotations, authors, colors, status, timestamps, and attachment data are stored together in that file. Copying, renaming, backing up, or versioning the file carries its annotations with it. Removing the plugin preserves the footer. Plugin settings store the default author, not the annotations. No account, hosted database, or export service is needed to recover the data.
+
+This provides durable data, with limits on interoperability:
+
+- The footer is documented, versioned JSON inside a standard HTML comment. A text editor or independent script can inspect it. Other Markdown applications generally hide the footer when rendering and do not draw the highlights or provide comment controls. This is a plugin-specific annotation schema, not a shared Markdown annotation standard.
+- With the plugin disabled, the raw footer is visible in source. Long quotations and surrounding context can make files and Git diffs substantially larger. Highlighting does not insert portable `==highlight==` markup into the prose.
+- Exact quotations and context support conservative reattachment. External edits inside a quotation, ambiguous passages, and sync conflicts can require manual reattachment. Plain-text storage does not provide concurrent-edit conflict resolution.
+- An independent reader should decode JSON, use UTF-16 offsets, and verify quotation/context rather than trusting offsets alone. Recognized records are normalized on mutation; arbitrary extra JSON properties are not preserved as extensions.
+
+The data survives the app. The interactive annotation experience currently depends on the plugin. A standard Markdown export could improve interoperability in the future; it is not an existing feature.
+
 ## Example: raw Markdown
 
 ```markdown

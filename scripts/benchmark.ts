@@ -2,6 +2,7 @@ import { EditorState } from "@codemirror/state";
 import * as editor from "../src/editor";
 import { newComment, parse, reconcile, serialize } from "../src/model";
 import { statSync } from "node:fs";
+import { benchmarkMetadata } from "./benchmark-metadata.mjs";
 const scenarios = [
   { name: "unannotated", lines: 1800, count: 0, length: 14 },
   { name: "typical", lines: 1800, count: 100, length: 14 },
@@ -59,12 +60,14 @@ for (const spec of scenarios) {
     medianMs: percentile(samples, 0.5),
     p95Ms: percentile(samples, 0.95),
     p99Ms: percentile(samples, 0.99),
+    dispatchMs: samples,
   });
 }
 console.log(
   JSON.stringify(
     {
-      runtime: process.version,
+      ...benchmarkMetadata(),
+      warmupDispatches: 10,
       samplesPerScenario: 100,
       mainBytes: statSync("main.js").size,
       results,

@@ -1,0 +1,36 @@
+{
+  "measuredAt": "2026-11-15T16:50:06.730Z",
+  "method": "Instrumented Plugin load/loadCSS/loadData methods; separate from uninstrumented benchmark runs",
+  "measurements": [
+    {
+      "loadData": 1.2000000000698492,
+      "load": 593.1000000000931,
+      "loadCSS": 36.39999999990687,
+      "total": 657.6999999999534
+    },
+    {
+      "loadData": 1.1000000000931323,
+      "load": 608.9000000000233,
+      "loadCSS": 40.300000000046566,
+      "total": 661.0999999999767
+    },
+    {
+      "loadData": 1.7000000000698492,
+      "load": 598,
+      "loadCSS": 41.70000000006985,
+      "total": 652.1999999999534
+    },
+    {
+      "loadData": 0.19999999995343387,
+      "load": 587.7999999999302,
+      "loadCSS": 23,
+      "total": 636.5
+    },
+    {
+      "loadData": 3.6000000000931323,
+      "load": 597.6000000000931,
+      "loadCSS": 24.800000000046566,
+      "total": 635.8000000000466
+    }
+  ]
+}
