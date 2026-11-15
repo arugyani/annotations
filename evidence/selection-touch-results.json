@@ -1,0 +1,11 @@
+{
+  "obsidian": "1.15.1",
+  "emulatedTouch": true,
+  "physicalDevice": false,
+  "checks": [
+    "typing at EOF without a final newline stays before the folded metadata",
+    "select-all/delete removes prose while preserving annotations, and undo restores it",
+    "disable/re-enable preserves bytes and folds metadata even with a saved caret inside it",
+    "emulated touch uses 44px controls and supports color selection plus inline note entry"
+  ]
+}

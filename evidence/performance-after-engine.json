@@ -1,0 +1,47 @@
+{
+  "runtime": "v24.22.1",
+  "samplesPerScenario": 100,
+  "mainBytes": 27741,
+  "results": [
+    {
+      "scenario": "unannotated",
+      "documentCharacters": 119490,
+      "comments": 0,
+      "rawCharacters": 119490,
+      "loadMs": 4.622527999999988,
+      "medianMs": 0.16168900000002395,
+      "p95Ms": 0.38713200000000825,
+      "p99Ms": 1.246061999999995
+    },
+    {
+      "scenario": "typical",
+      "documentCharacters": 119490,
+      "comments": 100,
+      "rawCharacters": 183338,
+      "loadMs": 4.998958999999985,
+      "medianMs": 0.32427999999998747,
+      "p95Ms": 2.550309000000027,
+      "p99Ms": 2.9958690000000274
+    },
+    {
+      "scenario": "dense",
+      "documentCharacters": 1008890,
+      "comments": 500,
+      "rawCharacters": 1328018,
+      "loadMs": 40.92532699999998,
+      "medianMs": 1.1496399999999767,
+      "p95Ms": 9.350349999999992,
+      "p99Ms": 10.652625000000057
+    },
+    {
+      "scenario": "long selections",
+      "documentCharacters": 119490,
+      "comments": 40,
+      "rawCharacters": 431399,
+      "loadMs": 3.3307329999998956,
+      "medianMs": 0.7849299999999175,
+      "p95Ms": 2.6195320000000493,
+      "p99Ms": 3.7285419999999476
+    }
+  ]
+}

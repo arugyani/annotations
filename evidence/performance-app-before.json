@@ -1,0 +1,20 @@
+{
+  "obsidian": "1.15.1",
+  "documentCharacters": 119490,
+  "comments": 100,
+  "samples": 70,
+  "medianDispatchMs": 12.5,
+  "p95DispatchMs": 16.90000000037253,
+  "p99DispatchMs": 18.40000000037253,
+  "sidebarMutationsForPrefixEdit": 1322,
+  "sidebarFirstRowReused": false,
+  "searchControlReused": false,
+  "searchFocusPreserved": false,
+  "warmEnableMs": [
+    71,
+    74.60000000149012,
+    60.59999999962747,
+    64.40000000037253,
+    93
+  ]
+}

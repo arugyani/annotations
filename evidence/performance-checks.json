@@ -1,0 +1,10 @@
+{
+  "obsidian": "1.15.1",
+  "checks": [
+    "50 concurrent reading requests share one read and one validated snapshot",
+    "vault modification invalidates cached content",
+    "reading cache evicts older documents beyond its four-note limit",
+    "unrelated note changes do not mutate the active comments UI",
+    "editor scrolling reuses the validated annotation snapshot"
+  ]
+}

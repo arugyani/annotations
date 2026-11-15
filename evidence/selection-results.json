@@ -1,0 +1,23 @@
+{
+  "obsidian": "1.15.1",
+  "checks": [
+    "real mouse selection opens the annotation pill",
+    "one color click saves a highlight with no modal and preserves exact document bytes",
+    "valid metadata stays folded with cursor in the annotated text",
+    "recoloring and repeated same-color clicks preserve one annotation",
+    "inline note is saved onto the highlight as inert text",
+    "explicit raw inspection expands and folds without modifying any stored bytes",
+    "forward Delete cannot remove the folded storage separator",
+    "Ctrl+End and typing stay in document text rather than appending after the footer",
+    "Add note directly creates a highlighted annotation without an intermediate color click",
+    "choosing a color while composing keeps the draft and saves to that same highlight",
+    "canceling an optional note preserves the already chosen highlight",
+    "command palette route and Ctrl+Enter save work with keyboard focus",
+    "source changes while composing reject a stale save and preserve the previous note",
+    "reopening preserves highlights/notes and keeps the footer folded",
+    "highlight-only annotations offer Add a note in the sidebar",
+    "Source mode also folds the JSON footer",
+    "inline note composer stays inside a 390px window"
+  ],
+  "errors": []
+}
