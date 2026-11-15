@@ -1,9 +1,7 @@
-Fixes for the Obsidian community review.
+Smoother highlights and selection controls.
 
-- Use Obsidian DOM helpers for annotation controls while preserving pop-out document ownership.
-- Use scoped CSS selectors instead of `!important` overrides.
-- Keep highlights, selected comments, hidden controls, and high-contrast borders correctly styled.
-- Disable entrance animations when system or Obsidian reduced-motion settings are active.
-- Attach only `main.js`, `manifest.json`, and `styles.css` to the release.
+- Feathered left-to-right highlight reveal with a gradual underline fade.
+- Softer selection pill and smooth color selection feedback.
+- Respect reduced motion and prevent stale animations after undo.
 
-Use Obsidian 1.8.7 or later. Existing annotations remain compatible.
+Requires Obsidian 1.8.7 or later. Existing annotations remain compatible.

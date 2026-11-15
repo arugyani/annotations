@@ -1,6 +1,6 @@
 {
   "name": "annotations",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Highlights and optional notes stored directly in Markdown.",
   "scripts": {
     "build": "node scripts/build.mjs",

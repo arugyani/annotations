@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.9 — November 15, 2026
+
+- Add a feathered highlight sweep, softer selection pill, and smooth color selection feedback.
+- Honor reduced motion and prevent stale reveals after immediate or batched undo.
+- Refresh the benchmark table.
+
 ## 1.0.8 — November 15, 2026
 
 - Use Obsidian DOM helpers for annotation controls while preserving pop-out document ownership.
