@@ -267,16 +267,17 @@ export function editorExtension(
         }
         update(u: ViewUpdate) {
           if (u.docChanged) {
-            this.pending.clear();
             const next = u.state.field(annotationState);
             this.decorations = next.mapped
               ? this.decorations.map(u.changes)
               : this.build(u.view);
           }
-          for (const tr of u.transactions)
+          for (const tr of u.transactions) {
+            if (tr.docChanged) this.pending.clear();
             for (const effect of tr.effects)
               if (effect.is(revealHighlights))
                 for (const id of effect.value) this.pending.add(id);
+          }
           if (this.pending.size) this.reveal(u.view);
           // DecorationSet is document-wide; scrolling needs no parsing, matching, or rebuilding.
           observe?.(u.view, u.state.field(annotationState));
