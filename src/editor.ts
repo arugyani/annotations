@@ -121,6 +121,7 @@ function introducesMarker(tr: Transaction, end: number): boolean {
   return found;
 }
 const snapshotEffect = StateEffect.define<AnnotationSnapshot>();
+const revealHighlights = StateEffect.define<readonly string[]>();
 export const annotationState = StateField.define<AnnotationSnapshot>({
   create: (state) => readSnapshot(state.doc),
   update(value, tr) {
@@ -229,9 +230,20 @@ export function changeComments(
     insert,
   );
   const next = snapshot(before.source, records, footer, expected);
+  const previous = new Map(before.records.map((c) => [c.id, c.color]));
+  const reveal = records
+    .filter(
+      (c) =>
+        c.kind !== "file" &&
+        c.status === "open" &&
+        c.target.state === "attached" &&
+        c.target.to > c.target.from &&
+        previous.get(c.id) !== c.color,
+    )
+    .map((c) => c.id);
   view.dispatch({
     changes: { from: before.start, to: view.state.doc.length, insert },
-    effects: snapshotEffect.of(next),
+    effects: [snapshotEffect.of(next), revealHighlights.of(reveal)],
     annotations: isolateHistory.of("full"),
   });
 }
@@ -246,6 +258,9 @@ export function editorExtension(
     ViewPlugin.fromClass(
       class {
         decorations: DecorationSet;
+        private pending = new Set<string>();
+        private animations = new Map<HTMLElement, Animation>();
+        private destroyed = false;
         constructor(view: EditorView) {
           this.decorations = this.build(view);
           observe?.(view, view.state.field(annotationState));
@@ -257,8 +272,81 @@ export function editorExtension(
               ? this.decorations.map(u.changes)
               : this.build(u.view);
           }
+          for (const tr of u.transactions) {
+            if (tr.docChanged) this.pending.clear();
+            for (const effect of tr.effects)
+              if (effect.is(revealHighlights))
+                for (const id of effect.value) this.pending.add(id);
+          }
+          if (this.pending.size) this.reveal(u.view);
           // DecorationSet is document-wide; scrolling needs no parsing, matching, or rebuilding.
           observe?.(u.view, u.state.field(annotationState));
+        }
+        private motionAllowed(view: EditorView) {
+          const document = view.dom.ownerDocument;
+          return (
+            !document.body.classList.contains("is-reduced-motion") &&
+            !document.defaultView!.matchMedia(
+              "(prefers-reduced-motion: reduce), (forced-colors: active)",
+            ).matches
+          );
+        }
+        private reveal(view: EditorView) {
+          if (!this.motionAllowed(view)) {
+            this.pending.clear();
+            return;
+          }
+          view.requestMeasure({
+            key: this,
+            read: () => {
+              const marks = this.destroyed
+                ? []
+                : Array.from(
+                    view.contentDOM.querySelectorAll<HTMLElement>(
+                      ".comments-highlight",
+                    ),
+                  ).filter((mark) => this.pending.has(mark.dataset.commentId!));
+              this.pending.clear();
+              return marks;
+            },
+            write: (marks) => {
+              if (this.destroyed || !this.motionAllowed(view)) return;
+              for (const mark of marks) {
+                if (!mark.isConnected) continue;
+                this.animations.get(mark)?.cancel();
+                const backgroundImage =
+                  "linear-gradient(to right, var(--comment-tint) 0%, var(--comment-tint) 40%, transparent 60%)";
+                const animation = mark.animate(
+                  [
+                    {
+                      backgroundImage,
+                      backgroundSize: "250% 100%",
+                      backgroundPosition: "100% 0%",
+                      borderBottomColor: "transparent",
+                    },
+                    {
+                      backgroundImage,
+                      backgroundSize: "250% 100%",
+                      backgroundPosition: "0% 0%",
+                      borderBottomColor: "var(--comment-ink)",
+                    },
+                  ],
+                  { duration: 460, easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
+                );
+                this.animations.set(mark, animation);
+                animation.onfinish = animation.oncancel = () => {
+                  if (this.animations.get(mark) === animation)
+                    this.animations.delete(mark);
+                };
+              }
+            },
+          });
+        }
+        destroy() {
+          this.destroyed = true;
+          this.pending.clear();
+          for (const animation of this.animations.values()) animation.cancel();
+          this.animations.clear();
         }
         build(view: EditorView) {
           const p = view.state.field(annotationState);

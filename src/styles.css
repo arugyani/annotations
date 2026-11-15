@@ -267,6 +267,12 @@
   cursor: pointer;
   color: inherit;
 }
+.markdown-source-view.mod-cm6 .cm-content .comments-highlight {
+  background-color: transparent;
+  background-image: linear-gradient(var(--comment-tint), var(--comment-tint));
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
 .comments-panel button:focus-visible,
 .comments-panel input:focus-visible,
 .comments-compose :focus-visible,
@@ -318,10 +324,14 @@
   background: var(--comment-ink);
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 0 0 2px transparent,
+    0 0 0 4px transparent;
 }
 .comments-swatch[aria-pressed="true"] > span {
-  outline: 2px solid var(--text-normal);
-  outline-offset: 2px;
+  box-shadow:
+    0 0 0 2px var(--background-primary),
+    0 0 0 4px var(--text-normal);
 }
 .comments-pill-separator {
   width: 1px;
@@ -368,10 +378,10 @@
   visibility: hidden;
 }
 .comments-selection-tooltip {
-  --comments-enter-y: 5px;
+  --comments-enter-y: 6px;
 }
 .comments-selection-tooltip.cm-tooltip-below {
-  --comments-enter-y: -5px;
+  --comments-enter-y: -6px;
 }
 .comments-selection-tooltip.cm-tooltip-above .comments-selection-pill {
   transform-origin: bottom left;
@@ -382,7 +392,7 @@
 @keyframes comments-appear {
   from {
     opacity: 0;
-    transform: translateY(var(--comments-enter-y)) scale(0.96);
+    transform: translateY(var(--comments-enter-y)) scale(0.94);
   }
   to {
     opacity: 1;
@@ -401,7 +411,21 @@
   body:not(.is-reduced-motion)
     .comments-selection-tooltip.is-positioned
     .comments-inline-compose {
-    animation: comments-appear 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: comments-appear 340ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  body:not(.is-reduced-motion) .comments-selection-pill button {
+    transition: background-color 160ms ease;
+  }
+  body:not(.is-reduced-motion) .comments-swatch > span {
+    transition:
+      transform 220ms ease,
+      box-shadow 220ms ease;
+  }
+  body:not(.is-reduced-motion) .comments-swatch:hover > span {
+    transform: scale(1.08);
+  }
+  body:not(.is-reduced-motion) .comments-swatch:active > span {
+    transform: scale(0.94);
   }
 }
 @media (max-width: 650px), (pointer: coarse) {
@@ -442,6 +466,10 @@
 @media (forced-colors: active) {
   .comments-swatch > span {
     forced-color-adjust: none;
+  }
+  .comments-swatch[aria-pressed="true"] > span {
+    outline: 2px solid var(--text-normal);
+    outline-offset: 2px;
   }
   .comments-panel .comments-card button.comments-target {
     border: 1px solid ButtonText;
