@@ -1,0 +1,2 @@
+# Preserve exact Markdown and deliberately malformed test data.
+tests/fixtures/

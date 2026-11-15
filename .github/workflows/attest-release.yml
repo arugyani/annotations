@@ -1,0 +1,45 @@
+name: Attest release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  attest:
+    if: github.event.repository.private == false && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      - run: npm run validate
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Verify published release matches the source build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = false
+          gh release download "$TAG" --dir published --pattern main.js --pattern manifest.json --pattern styles.css
+          cmp main.js published/main.js
+          cmp manifest.json published/manifest.json
+          cmp styles.css published/styles.css
+      - name: Attest the verified build
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            published/main.js
+            published/manifest.json
+            published/styles.css

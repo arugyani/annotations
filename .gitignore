@@ -1,0 +1,11 @@
+node_modules/
+/main.js
+/styles.css
+/dist/
+/release/
+tests/fixtures/vault/.obsidian/plugins/
+tests/fixtures/vault/.obsidian/workspace*.json
+.DS_Store
+
+# Legacy local test workspace
+/sample-vault/

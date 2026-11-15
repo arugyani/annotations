@@ -1,0 +1,26 @@
+{
+  "obsidian": "1.15.1",
+  "checks": [
+    "selection command, author/color, safe literal body and sidebar",
+    "actual editor highlight reveals its sidebar comment",
+    "edit, resolve, resolved filter and reopen",
+    "actual editor moves anchor when typing before target",
+    "actual editor inside-target edits, undo and redo",
+    "disk persistence after closing and reopening note",
+    "target deletion and manual reattachment",
+    "block, section and entire-file commands",
+    "delete confirmation removes only the chosen comment",
+    "color/search filters and clear empty state",
+    "file rename retains all in-file records",
+    "Reading view target buttons reveal comments",
+    "external filesystem edit preserves latest content and reconciles offsets through atomic write",
+    "external target replacement remains preserved and visibly needs reattachment",
+    "malformed footer refuses actual vault write",
+    "actual app desktop/narrow layout in light/dark themes, no panel horizontal overflow",
+    "no renderer JavaScript errors during run",
+    "application restart reloads plugin and all saved comments from Markdown",
+    "keyboard tab navigation has a visible focus outline",
+    "native comment action menu opens from keyboard"
+  ],
+  "errors": []
+}
