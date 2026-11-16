@@ -273,6 +273,15 @@
   background-size: 100% 100%;
   background-repeat: no-repeat;
 }
+.markdown-source-view.mod-cm6 .cm-content .math.comments-highlight {
+  background: none;
+  border-bottom: 0;
+}
+.markdown-source-view.mod-cm6 .cm-content .math.comments-highlight mjx-math {
+  background: var(--comment-tint);
+  border-radius: 3px;
+  box-shadow: 0 0 0 3px var(--comment-tint);
+}
 .comments-panel button:focus-visible,
 .comments-panel input:focus-visible,
 .comments-compose :focus-visible,
