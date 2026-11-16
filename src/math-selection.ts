@@ -100,12 +100,29 @@ const mathView = ViewPlugin.fromClass(
             this.schedulePaint();
         },
       );
+      view.contentDOM.addEventListener("click", this.mathClicked, true);
       this.observer.observe(view.contentDOM, {
         childList: true,
         subtree: true,
       });
       this.schedulePaint();
     }
+    private mathClicked = (event: MouseEvent) => {
+      const selection = this.document.getSelection();
+      const anchor = enclosingMath(selection?.anchorNode ?? null);
+      if (
+        selection &&
+        !selection.isCollapsed &&
+        anchor &&
+        anchor === enclosingMath(selection.focusNode) &&
+        event.target instanceof this.document.defaultView!.Node &&
+        anchor.contains(event.target)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.selectionChanged();
+      }
+    };
     private selectionChanged = () => {
       if (
         this.view.state.readOnly ||
@@ -273,6 +290,7 @@ const mathView = ViewPlugin.fromClass(
     destroy() {
       this.alive = false;
       this.observer.disconnect();
+      this.view.contentDOM.removeEventListener("click", this.mathClicked, true);
       this.document.removeEventListener(
         "selectionchange",
         this.selectionChanged,
