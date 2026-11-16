@@ -7,6 +7,7 @@ import {
 } from "@codemirror/view";
 import { annotationState } from "./editor";
 import type { Comment } from "./model";
+import { mathHighlightBackground } from "./math-highlight";
 
 export interface MathSelection {
   from: number;
@@ -68,6 +69,7 @@ const mathView = ViewPlugin.fromClass(
     private element: HTMLElement | null = null;
     private painted = new Map<HTMLElement, Comment>();
     private alive = true;
+    private observer: MutationObserver;
     private document: Document;
     private window: Window;
     constructor(private view: EditorView) {
@@ -78,6 +80,25 @@ const mathView = ViewPlugin.fromClass(
         this.selectionChanged,
         true,
       );
+      this.observer = new MutationObserver((changes) => {
+        if (
+          changes.some(
+            (change) =>
+              enclosingMath(change.target) ||
+              Array.from(change.addedNodes).some(
+                (node) =>
+                  node.nodeType === 1 &&
+                  ((node as Element).matches(".math") ||
+                    (node as Element).querySelector(".math")),
+              ),
+          )
+        )
+          this.schedulePaint();
+      });
+      this.observer.observe(view.contentDOM, {
+        childList: true,
+        subtree: true,
+      });
       this.schedulePaint();
     }
     private selectionChanged = () => {
@@ -134,7 +155,8 @@ const mathView = ViewPlugin.fromClass(
       });
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) this.schedulePaint();
+      if (update.docChanged || update.viewportChanged || update.geometryChanged)
+        this.schedulePaint();
     }
     coordinates(): Rect {
       const range = this.view.state.field(renderedMathSelection);
@@ -172,7 +194,11 @@ const mathView = ViewPlugin.fromClass(
                   c.target.from < range.to &&
                   c.target.to > range.from,
               );
-            return { element, record };
+            return {
+              element,
+              record,
+              background: record ? mathHighlightBackground(element) : "none",
+            };
           });
         },
         write: (entries) => {
@@ -180,8 +206,14 @@ const mathView = ViewPlugin.fromClass(
           const visible = new Set(entries.map((entry) => entry.element));
           for (const element of this.painted.keys())
             if (!visible.has(element)) this.clear(element);
-          for (const { element, record } of entries) {
+          for (const { element, record, background } of entries) {
             const previous = this.painted.get(element);
+            if (
+              record &&
+              element.style.getPropertyValue("--comments-math-bands") !==
+                background
+            )
+              element.style.setProperty("--comments-math-bands", background);
             if (!record) {
               if (previous) this.clear(element);
               continue;
@@ -197,6 +229,7 @@ const mathView = ViewPlugin.fromClass(
               "comments-highlight",
               `comments-${record.color}`,
             );
+            element.style.setProperty("--comments-math-bands", background);
             element.dataset.commentId = record.id;
             element.setAttribute("aria-label", record.body || "Open highlight");
             this.painted.set(element, record);
@@ -211,12 +244,14 @@ const mathView = ViewPlugin.fromClass(
         "comments-highlight",
         `comments-${record.color}`,
       );
+      element.style.removeProperty("--comments-math-bands");
       element.removeAttribute("data-comment-id");
       element.removeAttribute("aria-label");
       this.painted.delete(element);
     }
     destroy() {
       this.alive = false;
+      this.observer.disconnect();
       this.document.removeEventListener(
         "selectionchange",
         this.selectionChanged,
