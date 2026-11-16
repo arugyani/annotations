@@ -277,10 +277,13 @@
   background: none;
   border-bottom: 0;
 }
-.markdown-source-view.mod-cm6 .cm-content .math.comments-highlight mjx-math {
+.markdown-source-view.mod-cm6
+  .cm-content
+  .math.comments-highlight
+  :is(mjx-mi, mjx-mn, mjx-mo, mjx-mtext, mjx-ms) {
   background: var(--comment-tint);
-  border-radius: 3px;
-  box-shadow: 0 0 0 3px var(--comment-tint);
+  border-radius: 2px;
+  box-shadow: 0 2px 0 var(--comment-ink);
 }
 .comments-panel button:focus-visible,
 .comments-panel input:focus-visible,
