@@ -62,6 +62,6 @@ Annotations uses your light or dark theme. On a small screen, the panel opens in
 
 No account or internet connection is necessary. Annotations does not collect data about how you use it. It does not access files outside your vault.
 
-Use Obsidian 1.8.7 or later. We have not tested Annotations on mobile devices.
+Use Obsidian 1.8.7 or later.
 
 [Report a problem](https://github.com/arugyani/annotations/issues) · [Developer guide](docs/DEVELOPMENT.md) · [MIT license](LICENSE)
