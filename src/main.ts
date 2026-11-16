@@ -92,6 +92,8 @@ export default class CommentsPlugin extends Plugin {
       }
     });
     this.register(() => {
+      for (const leaf of this.app.workspace.getLeavesOfType(VIEW))
+        if (leaf.view instanceof CommentsView) leaf.view.closeEditors(true);
       for (const scope of this.inlineScopes) this.app.keymap.popScope(scope);
       this.inlineScopes.clear();
     });
@@ -158,41 +160,8 @@ export default class CommentsPlugin extends Plugin {
       ),
       editorUX(
         () => this.author,
-        (textarea, save, cancel) => {
-          const scope = new Scope(this.app.scope);
-          scope.register(["Mod"], "Enter", (event) => {
-            if (textarea.ownerDocument.activeElement === textarea) {
-              event.preventDefault();
-              save();
-              return false;
-            }
-          });
-          scope.register([], "Escape", (event) => {
-            if (textarea.ownerDocument.activeElement === textarea) {
-              event.preventDefault();
-              cancel();
-              return false;
-            }
-          });
-          const activate = () => {
-            if (!this.inlineScopes.has(scope)) {
-              this.inlineScopes.add(scope);
-              this.app.keymap.pushScope(scope);
-            }
-          };
-          const deactivate = () => {
-            if (this.inlineScopes.delete(scope))
-              this.app.keymap.popScope(scope);
-          };
-          textarea.addEventListener("focus", activate);
-          textarea.addEventListener("blur", deactivate);
-          if (textarea.ownerDocument.activeElement === textarea) activate();
-          return () => {
-            textarea.removeEventListener("focus", activate);
-            textarea.removeEventListener("blur", deactivate);
-            deactivate();
-          };
-        },
+        (textarea, save, cancel) =>
+          this.bindComposeKeys(textarea, save, cancel),
       ),
     ]);
     this.addCommand({
@@ -268,6 +237,44 @@ export default class CommentsPlugin extends Plugin {
         }
       }),
     );
+  }
+  bindComposeKeys(
+    textarea: HTMLTextAreaElement,
+    save: () => void,
+    cancel: () => void,
+  ) {
+    const scope = new Scope(this.app.scope);
+    scope.register(["Mod"], "Enter", (event) => {
+      if (textarea.ownerDocument.activeElement === textarea) {
+        event.preventDefault();
+        save();
+        return false;
+      }
+    });
+    scope.register([], "Escape", (event) => {
+      if (textarea.ownerDocument.activeElement === textarea) {
+        event.preventDefault();
+        cancel();
+        return false;
+      }
+    });
+    const activate = () => {
+      if (!this.inlineScopes.has(scope)) {
+        this.inlineScopes.add(scope);
+        this.app.keymap.pushScope(scope);
+      }
+    };
+    const deactivate = () => {
+      if (this.inlineScopes.delete(scope)) this.app.keymap.popScope(scope);
+    };
+    textarea.addEventListener("focus", activate);
+    textarea.addEventListener("blur", deactivate);
+    if (textarea.ownerDocument.activeElement === textarea) activate();
+    return () => {
+      textarea.removeEventListener("focus", activate);
+      textarea.removeEventListener("blur", deactivate);
+      deactivate();
+    };
   }
   async onExternalSettingsChange() {
     this.author = readAuthor(await this.loadData());
@@ -688,9 +695,24 @@ class CommentModal extends Modal {
     text.focus();
   }
 }
+interface RowEditor {
+  baseline: Pick<Comment, "body" | "color">;
+  phase: "editing" | "saving";
+  color: Color;
+  dom: HTMLElement;
+  textarea: HTMLTextAreaElement;
+  save: HTMLButtonElement;
+  error: HTMLElement;
+  releaseKeys: () => void;
+}
 interface CommentRow {
   node: HTMLElement;
   record: Comment;
+  target?: HTMLButtonElement;
+  warning?: HTMLElement;
+  body?: HTMLElement;
+  footer?: HTMLElement;
+  editor?: RowEditor;
 }
 function sameVisibleComment(a: Comment, b: Comment): boolean {
   return (
@@ -747,7 +769,20 @@ class CommentsView extends ItemView {
   async onClose() {
     this.timerWindow?.clearTimeout(this.timer);
     this.generation++;
+    this.closeEditors();
     this.rows.clear();
+  }
+  closeEditors(restore = false) {
+    for (const row of this.rows.values()) {
+      if (!row.editor) continue;
+      this.disposeEditor(row);
+      if (restore && this.file) this.fillRow(row, this.file);
+    }
+  }
+  private disposeEditor(row: CommentRow) {
+    row.editor?.releaseKeys();
+    row.editor?.dom.remove();
+    row.editor = undefined;
   }
   schedule() {
     if (!this.containerEl.isShown()) return;
@@ -773,6 +808,7 @@ class CommentsView extends ItemView {
     if (this.file !== file || this.error !== p?.error || !this.subtitle) {
       this.file = file;
       this.error = p?.error;
+      this.closeEditors();
       this.rows.clear();
       this.list = undefined;
       const root = this.contentEl;
@@ -982,6 +1018,7 @@ class CommentsView extends ItemView {
     const ids = new Set(shown.map((c) => c.id));
     for (const [id, row] of this.rows)
       if (!ids.has(id)) {
+        this.disposeEditor(row);
         row.node.remove();
         this.rows.delete(id);
       }
@@ -1022,9 +1059,186 @@ class CommentsView extends ItemView {
       }
     }
   }
+  private openEditor(row: CommentRow, file: TFile) {
+    if (row.editor) {
+      row.editor.textarea.focus();
+      return;
+    }
+    const body = row.body;
+    if (!body) return;
+    body.empty();
+    if (row.footer) row.footer.hidden = true;
+    row.node.addClass("is-editing");
+    const dom = body.createDiv({ cls: "comments-row-editor" });
+    const textarea = dom.createEl("textarea", {
+      attr: {
+        rows: "4",
+        "aria-label": "Comment note",
+        placeholder: "Write a note…",
+      },
+    });
+    textarea.value = row.record.body;
+    const colors = dom.createDiv({ cls: "comments-row-colors" });
+    colors.setAttribute("role", "group");
+    colors.setAttribute("aria-label", "Highlight color");
+    const swatches = new Map<Color, HTMLButtonElement>();
+    const actions = dom.createDiv({
+      cls: "comments-actions comments-editor-actions",
+    });
+    const error = dom.createEl("p", {
+      cls: "comments-inline-error",
+      attr: { role: "alert" },
+    });
+    error.hidden = true;
+    const cancel = actions.createEl("button", {
+      text: "Cancel",
+      attr: { type: "button" },
+    });
+    const save = actions.createEl("button", {
+      text: "Save",
+      cls: "mod-cta",
+      attr: { type: "button" },
+    });
+    const editor: RowEditor = {
+      baseline: { body: row.record.body, color: row.record.color },
+      phase: "editing",
+      color: row.record.color,
+      dom,
+      textarea,
+      save,
+      error,
+      releaseKeys: () => {},
+    };
+    row.editor = editor;
+    const draftBody = () =>
+      textarea.value === editor.baseline.body
+        ? editor.baseline.body
+        : textarea.value.trim();
+    const sync = () => {
+      const saving = editor.phase === "saving";
+      textarea.disabled = cancel.disabled = saving;
+      dom.setAttribute("aria-busy", String(saving));
+      for (const [color, button] of swatches) {
+        button.disabled = saving;
+        button.setAttribute("aria-pressed", String(editor.color === color));
+      }
+      save.disabled =
+        saving ||
+        (draftBody() === editor.baseline.body &&
+          editor.color === editor.baseline.color);
+      save.setText(saving ? "Saving…" : "Save");
+    };
+    const close = (focus: boolean) => {
+      if (row.editor !== editor) return;
+      this.disposeEditor(row);
+      this.fillRow(row, file);
+      if (focus && row.node.isConnected)
+        row.node
+          .querySelector<HTMLButtonElement>(".comments-edit-note")
+          ?.focus();
+    };
+    const submit = async () => {
+      if (row.editor !== editor || save.disabled) return;
+      const body = draftBody(),
+        color = editor.color,
+        id = row.record.id;
+      editor.phase = "saving";
+      error.hidden = true;
+      sync();
+      let updated: Comment | undefined;
+      const saved = await this.plugin.change(file, (records) => {
+        const current = records.find((c) => c.id === id);
+        if (
+          !current ||
+          current.body !== editor.baseline.body ||
+          current.color !== editor.baseline.color
+        )
+          throw new Error(
+            "This annotation changed. Cancel and reopen it to review the latest note.",
+          );
+        updated = {
+          ...current,
+          body,
+          color,
+          updated: new Date().toISOString(),
+        };
+        return records.map((c) => (c.id === id ? updated! : c));
+      });
+      if (
+        row.editor !== editor ||
+        this.rows.get(id) !== row ||
+        this.file !== file
+      )
+        return;
+      if (saved && updated) {
+        row.record = updated;
+        this.records = this.records.map((c) => (c.id === id ? updated! : c));
+        close(true);
+        void this.render();
+      } else {
+        editor.phase = "editing";
+        error.setText(
+          "Could not save. Your draft is still here. Cancel and reopen if the annotation changed elsewhere.",
+        );
+        error.hidden = false;
+        sync();
+        textarea.focus();
+      }
+    };
+    for (const color of COLORS) {
+      const button = colors.createEl("button", {
+        cls: `comments-swatch comments-${color}`,
+        attr: {
+          type: "button",
+          "aria-label": `Highlight ${color}`,
+          title: `Highlight ${color}`,
+        },
+      });
+      button.createSpan().setAttribute("aria-hidden", "true");
+      button.onclick = () => {
+        editor.color = color;
+        sync();
+      };
+      swatches.set(color, button);
+    }
+    textarea.oninput = sync;
+    cancel.onclick = () => close(true);
+    save.onclick = () => void submit();
+    dom.onkeydown = (event) => {
+      if (event.key === "Escape" && editor.phase === "editing") {
+        event.preventDefault();
+        event.stopPropagation();
+        close(true);
+      } else if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        void submit();
+      }
+    };
+    editor.releaseKeys = this.plugin.bindComposeKeys(
+      textarea,
+      () => void submit(),
+      () => {
+        if (editor.phase === "editing") close(true);
+      },
+    );
+    sync();
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }
   private fillRow(row: CommentRow, file: TFile) {
     const c = row.record,
       card = row.node;
+    if (row.editor) {
+      const quote =
+        c.kind === "file"
+          ? "Entire file"
+          : c.target.quote || c.target.originalQuote;
+      if (row.target?.textContent !== quote) row.target?.setText(quote);
+      if (row.warning) row.warning.hidden = c.target.state !== "detached";
+      card.className = `comments-card comments-${c.color} is-editing`;
+      return;
+    }
     card.empty();
     card.className = `comments-card comments-${c.color}`;
     card.setAttribute("data-comment-id", c.id);
@@ -1032,22 +1246,30 @@ class CommentsView extends ItemView {
       "aria-label",
       `${c.color} ${c.body ? "comment" : "highlight"}${c.status === "resolved" ? ", resolved" : ""}`,
     );
-    const target = card.createEl("button", {
+    const target = (row.target = card.createEl("button", {
       text:
         c.kind === "file"
           ? "Entire file"
           : c.target.quote || c.target.originalQuote,
       cls: "comments-target",
-    });
+    }));
     target.title = "Navigate to target";
     target.onclick = () => void this.plugin.navigate(file, row.record);
-    if (c.target.state === "detached")
-      card.createEl("p", {
-        text: "Needs reattachment",
-        cls: "comments-warning",
+    row.warning = card.createEl("p", {
+      text: "Needs reattachment",
+      cls: "comments-warning",
+    });
+    row.warning.hidden = c.target.state !== "detached";
+    const body = (row.body = card.createDiv({ cls: "comments-body-slot" }));
+    if (c.body) {
+      const note = body.createEl("button", {
+        text: c.body,
+        cls: "comments-body comments-body-button",
+        attr: { type: "button", title: "Edit note" },
       });
-    if (c.body) card.createEl("p", { text: c.body, cls: "comments-body" });
-    const foot = card.createDiv({ cls: "comments-row-footer" }),
+      note.onclick = () => this.openEditor(row, file);
+    }
+    const foot = (row.footer = card.createDiv({ cls: "comments-row-footer" })),
       meta = foot.createDiv({ cls: "comments-meta" });
     if (c.status === "resolved")
       meta.createSpan({ text: "Resolved", cls: "comments-resolved" });
@@ -1065,28 +1287,17 @@ class CommentsView extends ItemView {
       void this.plugin.change(file, (rs) =>
         rs.map((x) => (x.id === row.record.id ? fn(x) : x)),
       );
-    if (!c.body) {
-      const add = iconButton("Add note", "message-square-plus", () => {
-        const current = row.record;
-        new CommentModal(
-          this.plugin,
-          "Add note",
-          current,
-          (body, color, author) =>
-            update((x) => {
-              if (x.body !== current.body || x.updated !== current.updated)
-                throw new Error("This annotation changed. Open it again.");
-              return {
-                ...x,
-                body,
-                color,
-                author,
-                updated: new Date().toISOString(),
-              };
-            }),
-        ).open();
+    if (c.body) {
+      iconButton("Edit note", "pencil", () =>
+        this.openEditor(row, file),
+      ).addClass("comments-edit-note");
+    } else {
+      const add = meta.createEl("button", {
+        text: "Add note",
+        cls: "comments-add-note comments-edit-note",
+        attr: { type: "button" },
       });
-      add.addClass("comments-add-note");
+      add.onclick = () => this.openEditor(row, file);
     }
     iconButton(
       c.status === "open" ? "Resolve" : "Reopen",
@@ -1103,8 +1314,8 @@ class CommentsView extends ItemView {
         menu = new Menu();
       menu.addItem((i) =>
         i
-          .setTitle("Edit")
-          .setIcon("pencil")
+          .setTitle("Edit details")
+          .setIcon("settings-2")
           .onClick(() =>
             new CommentModal(
               this.plugin,
