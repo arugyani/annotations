@@ -6,7 +6,8 @@
   font-family: var(--font-interface);
 }
 .comments-panel .comments-search[hidden],
-.comments-panel .comments-filter-summary[hidden] {
+.comments-panel .comments-filter-summary[hidden],
+.comments-panel .comments-row-footer[hidden] {
   display: none;
 }
 .comments-header {
@@ -138,6 +139,86 @@
   white-space: pre-wrap;
   line-height: 1.65;
   margin: 12px 0 10px;
+  font-size: var(--font-ui-small);
+}
+.comments-panel .comments-body-button {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  text-align: start;
+  cursor: text;
+}
+.comments-panel .comments-add-note {
+  height: auto;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.comments-panel .comments-add-note:hover {
+  color: var(--text-normal);
+}
+.comments-row-editor {
+  margin-top: 12px;
+}
+.comments-row-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 11px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  box-shadow: none;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--font-ui-small);
+  line-height: 1.6;
+}
+.comments-row-editor textarea:focus {
+  border-color: var(--background-modifier-border-focus);
+}
+.comments-row-colors {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 10px 0;
+}
+.comments-row-colors button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+.comments-row-colors button:hover {
+  background: var(--background-modifier-hover);
+}
+.comments-row-colors .comments-swatch > span {
+  height: 16px;
+  width: 16px;
+}
+.comments-editor-actions {
+  gap: 6px;
+}
+.comments-editor-actions button {
+  min-height: 30px;
+  padding: 4px 10px;
   font-size: var(--font-ui-small);
 }
 .comments-row-footer {
@@ -434,12 +515,17 @@
     min-width: 44px;
   }
   .comments-statuses button,
+  .comments-row-colors button,
+  .comments-add-note,
   .comments-filter-summary,
   .comments-actions button {
     min-height: 44px;
   }
   .comments-panel .comments-card button.comments-target {
     min-height: 44px;
+  }
+  .comments-row-colors button {
+    width: 44px;
   }
 }
 @media (pointer: coarse) {

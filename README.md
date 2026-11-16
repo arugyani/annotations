@@ -34,7 +34,8 @@ Select a highlight to open its comments. To open the panel from the command pale
 - Select the filter icon to show one highlight color.
 - Select the check mark to mark a comment as resolved.
 - Select **Open**, **Resolved**, or **All** to change the list.
-- Select a comment’s **…** menu to edit or delete the comment.
+- Select the pencil to edit a note or its highlight color.
+- Select **…** to delete a comment or edit its details.
 
 If you move or delete text, its comment can show **Needs reattachment**. The comment remains available in the panel.
 
