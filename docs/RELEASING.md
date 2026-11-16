@@ -1,5 +1,7 @@
 # Releasing Annotations
 
+Use the repository [Obsidian release-review skill](../.agents/skills/obsidian-release-review/SKILL.md) for every release, including existing drafts and community-review fixes. It adds the separate CSS checks, runtime review, and downloaded-asset verification learned from prior releases.
+
 The source of truth is `manifest.json`. Use a plain `x.y.z` version and an identical Git tag, with no `v` prefix. Update `package.json`, the lockfile, `versions.json`, and `docs/RELEASE_NOTES.md` together. The release validator rejects mismatches.
 
 ## Build and validate

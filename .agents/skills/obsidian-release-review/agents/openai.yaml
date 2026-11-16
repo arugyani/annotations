@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Release Review"
+  short_description: "Review Obsidian releases before publication"
+  default_prompt: "Use $obsidian-release-review to review this Obsidian plugin release and address submission feedback."
