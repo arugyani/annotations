@@ -384,7 +384,11 @@ export function editorExtension(
             return false;
           },
           click(event, view) {
-            if (!view.state.selection.main.empty) return false;
+            if (
+              !view.state.selection.main.empty ||
+              view.dom.ownerDocument.getSelection()?.isCollapsed === false
+            )
+              return false;
             const pos = view.posAtCoords({
               x: event.clientX,
               y: event.clientY,

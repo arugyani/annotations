@@ -16,6 +16,12 @@ import {
 } from "@codemirror/view";
 import { COLORS, newComment, type Color } from "./model";
 import { annotationState, changeComments } from "./editor";
+import {
+  renderedMath,
+  renderedMathSelection,
+  selectRenderedMath,
+  renderedMathCoordinates,
+} from "./math-selection";
 
 export const showStoredData = StateEffect.define<boolean>();
 export const storedDataVisible = StateField.define<boolean>({
@@ -105,8 +111,9 @@ export const composeSelection = StateEffect.define<boolean>();
 export const selectionSession = StateField.define<SelectionSession | null>({
   create: (state) => sessionFor(state, null),
   update(previous, tr) {
-    const selection = tr.newSelection.main;
-    if (selection.empty) return null;
+    const selection =
+      tr.state.field(renderedMathSelection, false) ?? tr.newSelection.main;
+    if (selection.from === selection.to) return null;
     const same =
       previous &&
       tr.changes.mapPos(previous.from, 1) === selection.from &&
@@ -137,8 +144,9 @@ function sessionFor(
   state: EditorState,
   previous: SelectionSession | null,
 ): SelectionSession | null {
-  const selection = state.selection.main;
-  if (selection.empty || state.readOnly) return null;
+  const selection =
+    state.field(renderedMathSelection, false) ?? state.selection.main;
+  if (selection.from === selection.to || state.readOnly) return null;
   const p = state.field(annotationState);
   if (p.error || selection.to > p.start) return null;
   let id = previous?.highlightId ?? null;
@@ -460,12 +468,21 @@ export function editorUX(
   bindKeys?: BindComposeKeys,
 ): Extension {
   const create = (view: EditorView) => selectionToolbar(view, author, bindKeys);
+  const createMath = (view: EditorView): TooltipView => ({
+    ...selectionToolbar(view, author, bindKeys),
+    getCoords: () => renderedMathCoordinates(view),
+  });
   const tooltip = StateField.define<Tooltip | null>({
     create: (state) => makeTooltip(state),
     update(value, tr) {
       return tr.docChanged ||
         tr.selection ||
-        tr.effects.some((e) => e.is(composeSelection) || e.is(chooseHighlight))
+        tr.effects.some(
+          (e) =>
+            e.is(composeSelection) ||
+            e.is(chooseHighlight) ||
+            e.is(selectRenderedMath),
+        )
         ? makeTooltip(tr.state)
         : value;
     },
@@ -474,6 +491,9 @@ export function editorUX(
   function makeTooltip(state: EditorState): Tooltip | null {
     const session = state.field(selectionSession);
     if (!session) return null;
+    const math = state.field(renderedMathSelection);
+    if (math)
+      return { pos: math.from, end: math.to, above: true, create: createMath };
     const selection = state.selection.main;
     // Follow the fixed end of the gesture, not the moving start of a backwards
     // selection. Open on the opposite side so the pill stays out of the drag path.
@@ -488,6 +508,7 @@ export function editorUX(
     storedDataVisible,
     footerPresentation,
     proseSelection,
+    renderedMath,
     selectionSession,
     tooltip,
     EditorView.atomicRanges.of((view) =>

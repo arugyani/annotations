@@ -14,6 +14,8 @@ Mark a word, a passage, a block, a section, or a complete note. Keep a highlight
 
 The toolbar opens above or below the selected text. The highlight saves immediately. A comment is optional. The five colors are yellow, blue, green, purple, and red.
 
+In Live Preview, selecting rendered math annotates the whole equation.
+
 ## Add a comment
 
 1. Select the text.
