@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.10 — November 15, 2026
+
+- Highlight rendered equations and add notes in Live Preview.
+- Keep math highlights aligned with equation lines when scrolling.
+- Preview math selections without switching equations to source text.
+
 ## 1.0.9 — November 15, 2026
 
 - Add a feathered highlight sweep, softer selection pill, and smooth color selection feedback.

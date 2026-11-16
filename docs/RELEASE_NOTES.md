@@ -1,7 +1,7 @@
-Smoother highlights and selection controls.
+Annotate rendered equations in Live Preview.
 
-- Feathered left-to-right highlight reveal with a gradual underline fade.
-- Softer selection pill and smooth color selection feedback.
-- Respect reduced motion and prevent stale animations after undo.
+- Select a rendered equation to highlight it or add a note.
+- Keep highlights aligned with inline equations and display-math lines when scrolling.
+- Preview math selections while keeping equations rendered.
 
 Requires Obsidian 1.8.7 or later. Existing annotations remain compatible.
