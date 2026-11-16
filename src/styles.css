@@ -282,7 +282,7 @@
 .markdown-source-view.mod-cm6
   .cm-content
   .math:is(.comments-highlight, .comments-math-selected)
-  mjx-math {
+  .comments-math-surface {
   background: var(--comments-math-bands, none);
 }
 .math.comments-math-selected:not(.comments-highlight) {

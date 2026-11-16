@@ -258,6 +258,9 @@ const mathView = ViewPlugin.fromClass(
                 element.classList.remove(`comments-${previous.record.color}`);
               if (record) element.classList.add(`comments-${record.color}`);
             }
+            element
+              .querySelector("mjx-math")
+              ?.classList.add("comments-math-surface");
             element.classList.toggle("comments-highlight", !!record);
             element.classList.toggle("comments-math-selected", selected);
             if (previous?.background !== background)
@@ -282,6 +285,8 @@ const mathView = ViewPlugin.fromClass(
       if (previous?.record)
         element.classList.remove(`comments-${previous.record.color}`);
       element.classList.remove("comments-highlight", "comments-math-selected");
+      for (const surface of element.querySelectorAll(".comments-math-surface"))
+        surface.classList.remove("comments-math-surface");
       element.style.removeProperty("--comments-math-bands");
       element.removeAttribute("data-comment-id");
       element.removeAttribute("aria-label");

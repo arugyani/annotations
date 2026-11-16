@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11 — November 16, 2026
+
+- Style rendered math through a plugin-owned class to satisfy the community CSS review.
+- Remove that class when highlights are cleared or the plugin unloads.
+
 ## 1.0.10 — November 15, 2026
 
 - Highlight rendered equations and add notes in Live Preview.
