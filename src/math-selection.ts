@@ -67,7 +67,10 @@ const mathView = ViewPlugin.fromClass(
   class {
     private frame = 0;
     private element: HTMLElement | null = null;
-    private painted = new Map<HTMLElement, Comment>();
+    private painted = new Map<
+      HTMLElement,
+      { record: Comment | undefined; background: string }
+    >();
     private alive = true;
     private observer: MutationObserver;
     private document: Document;
@@ -157,7 +160,19 @@ const mathView = ViewPlugin.fromClass(
       });
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged || update.geometryChanged)
+      if (
+        update.selectionSet &&
+        !update.docChanged &&
+        !update.state.field(renderedMathSelection)
+      )
+        this.selectionChanged();
+      if (
+        update.docChanged ||
+        update.viewportChanged ||
+        update.geometryChanged ||
+        update.startState.field(renderedMathSelection) !==
+          update.state.field(renderedMathSelection)
+      )
         this.schedulePaint();
     }
     coordinates(): Rect {
@@ -182,24 +197,31 @@ const mathView = ViewPlugin.fromClass(
         read: (view) => {
           if (!this.alive) return [];
           const records = view.state.field(annotationState).records;
+          const selection = view.state.field(renderedMathSelection);
           return Array.from(
             view.contentDOM.querySelectorAll<HTMLElement>(".math"),
           ).map((element) => {
             const range = mathSourceRange(view, element);
-            const record =
-              range &&
-              records.find(
-                (c) =>
-                  c.kind !== "file" &&
-                  c.status === "open" &&
-                  c.target.state === "attached" &&
-                  c.target.from < range.to &&
-                  c.target.to > range.from,
-              );
+            const record = range
+              ? records.find(
+                  (c) =>
+                    c.kind !== "file" &&
+                    c.status === "open" &&
+                    c.target.state === "attached" &&
+                    c.target.from < range.to &&
+                    c.target.to > range.from,
+                )
+              : undefined;
+            const selected =
+              !!range &&
+              range.from === selection?.from &&
+              range.to === selection.to;
             return {
               element,
               record,
-              background: record ? mathHighlightBackground(element) : "none",
+              selected,
+              background:
+                record || selected ? mathHighlightBackground(element) : "none",
             };
           });
         },
@@ -208,44 +230,41 @@ const mathView = ViewPlugin.fromClass(
           const visible = new Set(entries.map((entry) => entry.element));
           for (const element of this.painted.keys())
             if (!visible.has(element)) this.clear(element);
-          for (const { element, record, background } of entries) {
+          for (const { element, record, selected, background } of entries) {
             const previous = this.painted.get(element);
-            if (!record) {
+            if (!record && !selected) {
               if (previous) this.clear(element);
               continue;
             }
-            if (
-              previous?.id === record.id &&
-              previous.color === record.color &&
-              previous.body === record.body
-            ) {
-              if (
-                element.style.getPropertyValue("--comments-math-bands") !==
-                background
-              )
-                element.style.setProperty("--comments-math-bands", background);
-              continue;
+            if (previous?.record?.color !== record?.color) {
+              if (previous?.record)
+                element.classList.remove(`comments-${previous.record.color}`);
+              if (record) element.classList.add(`comments-${record.color}`);
             }
-            if (previous) this.clear(element);
-            element.classList.add(
-              "comments-highlight",
-              `comments-${record.color}`,
-            );
-            element.style.setProperty("--comments-math-bands", background);
-            element.dataset.commentId = record.id;
-            element.setAttribute("aria-label", record.body || "Open highlight");
-            this.painted.set(element, record);
+            element.classList.toggle("comments-highlight", !!record);
+            element.classList.toggle("comments-math-selected", selected);
+            if (previous?.background !== background)
+              element.style.setProperty("--comments-math-bands", background);
+            if (record) {
+              element.dataset.commentId = record.id;
+              element.setAttribute(
+                "aria-label",
+                record.body || "Open highlight",
+              );
+            } else {
+              element.removeAttribute("data-comment-id");
+              element.removeAttribute("aria-label");
+            }
+            this.painted.set(element, { record, background });
           }
         },
       });
     }
     private clear(element: HTMLElement) {
-      const record = this.painted.get(element);
-      if (!record) return;
-      element.classList.remove(
-        "comments-highlight",
-        `comments-${record.color}`,
-      );
+      const previous = this.painted.get(element);
+      if (previous?.record)
+        element.classList.remove(`comments-${previous.record.color}`);
+      element.classList.remove("comments-highlight", "comments-math-selected");
       element.style.removeProperty("--comments-math-bands");
       element.removeAttribute("data-comment-id");
       element.removeAttribute("aria-label");

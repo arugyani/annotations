@@ -273,12 +273,25 @@
   background-size: 100% 100%;
   background-repeat: no-repeat;
 }
-.markdown-source-view.mod-cm6 .cm-content .math.comments-highlight {
+.markdown-source-view.mod-cm6
+  .cm-content
+  .math:is(.comments-highlight, .comments-math-selected) {
   background: none;
   border-bottom: 0;
 }
-.markdown-source-view.mod-cm6 .cm-content .math.comments-highlight mjx-math {
+.markdown-source-view.mod-cm6
+  .cm-content
+  .math:is(.comments-highlight, .comments-math-selected)
+  mjx-math {
   background: var(--comments-math-bands, none);
+}
+.math.comments-math-selected:not(.comments-highlight) {
+  --comment-tint: rgba(227, 183, 47, 0.24);
+  --comment-ink: #a47b12;
+}
+.math.comments-math-selected ::selection {
+  background: transparent;
+  color: inherit;
 }
 .comments-panel button:focus-visible,
 .comments-panel input:focus-visible,
