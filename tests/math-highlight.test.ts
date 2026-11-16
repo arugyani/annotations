@@ -28,6 +28,7 @@ test("aligned bands exclude cell padding and follow each line's content width", 
   ).window.document;
   const wrapper = document.querySelector("div")!;
   bounds(wrapper, 100, 100, 800, 100);
+  bounds(document.querySelector("mjx-math")!, 100, 100, 200, 100);
   const symbols = document.querySelectorAll("mjx-mi");
   bounds(symbols[0], 150, 110, 120, 30);
   bounds(symbols[1], 150, 150, 50, 15);
@@ -36,17 +37,20 @@ test("aligned bands exclude cell padding and follow each line's content width", 
   assert.ok(background.includes("49.00px 49.00px / 52.00px 17.00px"));
   assert.ok(!background.includes("800.00px"));
 });
-test("nested notation remains one continuous band and pending math has none", () => {
+test("tall inline notation uses its full rendered height and keeps the underline inside", () => {
   const document = new JSDOM(
     `<div><mjx-math><mjx-mrow><mjx-mtable></mjx-mtable></mjx-mrow></mjx-math></div>`,
   ).window.document;
   const wrapper = document.querySelector("div")!;
-  bounds(wrapper, 0, 0, 800, 100);
+  bounds(wrapper, 0, 0, 800, 27);
   bounds(document.querySelector("mjx-math")!, 200, 10, 180, 60);
   assert.ok(
     mathHighlightBackground(wrapper).includes(
-      "199.00px 9.00px / 182.00px 62.00px",
+      "-1.00px -1.00px / 182.00px 62.00px",
     ),
+  );
+  assert.ok(
+    mathHighlightBackground(wrapper).includes("-1.00px 59.00px / 182.00px 1px"),
   );
   wrapper.replaceChildren();
   assert.equal(mathHighlightBackground(wrapper), "none");

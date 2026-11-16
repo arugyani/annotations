@@ -274,8 +274,11 @@
   background-repeat: no-repeat;
 }
 .markdown-source-view.mod-cm6 .cm-content .math.comments-highlight {
-  background: var(--comments-math-bands, none);
+  background: none;
   border-bottom: 0;
+}
+.markdown-source-view.mod-cm6 .cm-content .math.comments-highlight mjx-math {
+  background: var(--comments-math-bands, none);
 }
 .comments-panel button:focus-visible,
 .comments-panel input:focus-visible,

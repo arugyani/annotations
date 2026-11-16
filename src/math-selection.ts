@@ -80,21 +80,23 @@ const mathView = ViewPlugin.fromClass(
         this.selectionChanged,
         true,
       );
-      this.observer = new MutationObserver((changes) => {
-        if (
-          changes.some(
-            (change) =>
-              enclosingMath(change.target) ||
-              Array.from(change.addedNodes).some(
-                (node) =>
-                  node.nodeType === 1 &&
-                  ((node as Element).matches(".math") ||
-                    (node as Element).querySelector(".math")),
-              ),
+      this.observer = new this.document.defaultView!.MutationObserver(
+        (changes) => {
+          if (
+            changes.some(
+              (change) =>
+                enclosingMath(change.target) ||
+                Array.from(change.addedNodes).some(
+                  (node) =>
+                    node.nodeType === 1 &&
+                    ((node as Element).matches(".math") ||
+                      (node as Element).querySelector(".math")),
+                ),
+            )
           )
-        )
-          this.schedulePaint();
-      });
+            this.schedulePaint();
+        },
+      );
       this.observer.observe(view.contentDOM, {
         childList: true,
         subtree: true,
@@ -208,12 +210,6 @@ const mathView = ViewPlugin.fromClass(
             if (!visible.has(element)) this.clear(element);
           for (const { element, record, background } of entries) {
             const previous = this.painted.get(element);
-            if (
-              record &&
-              element.style.getPropertyValue("--comments-math-bands") !==
-                background
-            )
-              element.style.setProperty("--comments-math-bands", background);
             if (!record) {
               if (previous) this.clear(element);
               continue;
@@ -222,8 +218,14 @@ const mathView = ViewPlugin.fromClass(
               previous?.id === record.id &&
               previous.color === record.color &&
               previous.body === record.body
-            )
+            ) {
+              if (
+                element.style.getPropertyValue("--comments-math-bands") !==
+                background
+              )
+                element.style.setProperty("--comments-math-bands", background);
               continue;
+            }
             if (previous) this.clear(element);
             element.classList.add(
               "comments-highlight",
