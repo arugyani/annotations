@@ -385,6 +385,12 @@
   line-height: 1.5;
   font-size: var(--font-ui-small);
 }
+.cm-tooltip.comments-selection-tooltip {
+  max-height: var(--comments-popup-max-height, none);
+}
+.cm-tooltip.comments-selection-tooltip.is-height-constrained {
+  overflow-y: auto;
+}
 .comments-inline-compose .comments-actions {
   margin-top: 12px;
 }

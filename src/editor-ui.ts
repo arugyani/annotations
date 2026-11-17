@@ -11,6 +11,7 @@ import {
   ViewPlugin,
   showTooltip,
   type DecorationSet,
+  type Rect,
   type Tooltip,
   type TooltipView,
 } from "@codemirror/view";
@@ -452,15 +453,67 @@ function selectionToolbar(
     else if (panel) closePanel();
   }
   update();
+  let anchor: Rect | null = null;
   return {
     dom,
     offset: { x: 0, y: 8 },
+    getCoords: (pos) => {
+      // Capture the anchor in CodeMirror's read phase. Its layout APIs cannot
+      // be called from positioned(), which runs in the write phase.
+      anchor = view.state.field(renderedMathSelection)
+        ? renderedMathCoordinates(view)
+        : view.coordsAtPos(pos);
+      return anchor ?? { top: -1e9, bottom: -1e9, left: 0, right: 0 };
+    },
     mount: () => {
       update();
       if (textarea) textarea.focus();
     },
     update: () => update(),
-    positioned: () => dom.classList.add("is-positioned"),
+    // CodeMirror's default bounds are the window, but Obsidian clips absolute
+    // tooltips at the editor pane. Constrain only our popup, not host tooltips.
+    resize: false,
+    positioned: (space) => {
+      const pane = view.scrollDOM.getBoundingClientRect();
+      const top = Math.max(space.top, pane.top) + 8;
+      let bottom = Math.min(space.bottom, pane.bottom) - 8;
+      const status = document
+        .querySelector(".status-bar")
+        ?.getBoundingClientRect();
+      if (
+        status?.height &&
+        status.right > pane.left &&
+        status.left < pane.right &&
+        status.top > top
+      )
+        bottom = Math.min(bottom, status.top - 8);
+      const available = Math.max(0, bottom - top);
+      dom.style.setProperty(
+        "--comments-popup-max-height",
+        `${available / view.scaleY}px`,
+      );
+      dom.classList.toggle(
+        "is-height-constrained",
+        dom.scrollHeight > available / view.scaleY,
+      );
+      const rect = dom.getBoundingClientRect();
+      const height = Math.min(rect.height, available);
+      let nextTop = Math.max(top, Math.min(rect.top, bottom - height));
+      if (rect.top < top || rect.bottom > bottom) {
+        if (anchor) {
+          if (rect.top < top && anchor.bottom + 8 + height <= bottom) {
+            nextTop = anchor.bottom + 8;
+            dom.classList.replace("cm-tooltip-above", "cm-tooltip-below");
+          } else if (rect.bottom > bottom && anchor.top - 8 - height >= top) {
+            nextTop = anchor.top - 8 - height;
+            dom.classList.replace("cm-tooltip-below", "cm-tooltip-above");
+          }
+        }
+      }
+      if (nextTop !== rect.top)
+        dom.style.top = `${parseFloat(dom.style.top) + (nextTop - rect.top) / view.scaleY}px`;
+      dom.classList.add("is-positioned");
+    },
     destroy: closePanel,
   };
 }
@@ -470,10 +523,6 @@ export function editorUX(
   mobile = false,
 ): Extension {
   const create = (view: EditorView) => selectionToolbar(view, author, bindKeys);
-  const createMath = (view: EditorView): TooltipView => ({
-    ...selectionToolbar(view, author, bindKeys),
-    getCoords: () => renderedMathCoordinates(view),
-  });
   const tooltip = StateField.define<Tooltip | null>({
     create: (state) => makeTooltip(state),
     update(value, tr) {
@@ -494,8 +543,7 @@ export function editorUX(
     const session = state.field(selectionSession);
     if (!session || mobile) return null;
     const math = state.field(renderedMathSelection);
-    if (math)
-      return { pos: math.from, end: math.to, above: true, create: createMath };
+    if (math) return { pos: math.from, end: math.to, above: true, create };
     const selection = state.selection.main;
     // Follow the fixed end of the gesture, not the moving start of a backwards
     // selection. Open on the opposite side so the pill stays out of the drag path.

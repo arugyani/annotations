@@ -1,10 +1,10 @@
-Fix the mobile annotation bar after you leave the editor.
+Keep the note editor visible in short windows.
 
-- Close the bar when you tap outside the editor or leave editing.
-- Keep the bar open while you select colors or write a note.
-- Remove the oval background behind mobile color buttons. Keep the selected color ring and full tap area.
-- Keep desktop controls unchanged.
+- Keep the annotation popup inside the visible editor pane.
+- Place it below the selected text when there is room.
+- Let the popup scroll in very short windows so you can reach Cancel and Save note.
+- Keep the popup clear of the status bar.
 
 Requires Obsidian 1.8.7 or later. Existing annotations remain compatible.
 
-Checked with automated tests, mobile browser previews, and an isolated Obsidian test vault. Physical iPhone confirmation of these fixes is pending.
+Verified in a separate Obsidian test vault at normal, narrow, and short window sizes.

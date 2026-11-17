@@ -67,11 +67,21 @@ test("the inline editor belongs to its pop-out document and saves user text lite
     extensions: [anchorFilter, editorUX(() => "Me")],
     selection: EditorSelection.single(2, 8),
   });
+  let positioning = false;
+  const editorDOM = document.createElement("div");
+  editorDOM.getBoundingClientRect = () =>
+    new popout.window.DOMRect(0, 80, 500, 300);
   const view = {
     get state() {
       return state;
     },
-    dom: document.createElement("div"),
+    dom: editorDOM,
+    scrollDOM: editorDOM,
+    scaleY: 1,
+    coordsAtPos() {
+      assert.equal(positioning, false, "layout reads belong to the read phase");
+      return { top: 204, bottom: 228, left: 100, right: 160 };
+    },
     focus() {},
     requestMeasure() {},
     dispatch(spec: any) {
@@ -92,6 +102,20 @@ test("the inline editor belongs to its pop-out document and saves user text lite
   view.dispatch({ effects: composeSelection.of(true) });
   const textarea = tip.dom.querySelector("textarea")!;
   assert.equal(textarea.ownerDocument, document);
+  // The old window-relative position fits the window but is clipped by the
+  // editor's 80px top edge. Positioning must use the cached selection geometry.
+  tip.dom.getBoundingClientRect = () =>
+    new popout.window.DOMRect(100, 0, 310, 196);
+  tip.dom.style.top = "-80px";
+  tip.getCoords?.(2);
+  positioning = true;
+  tip.positioned?.({ top: 0, left: 0, right: 500, bottom: 380 });
+  positioning = false;
+  assert.equal(tip.dom.style.top, "8px");
+  assert.equal(
+    tip.dom.style.getPropertyValue("--comments-popup-max-height"),
+    "284px",
+  );
   const save = Array.from(tip.dom.querySelectorAll("button")).find(
     (b) => b.textContent === "Save note",
   )!;

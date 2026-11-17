@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.15 — November 17, 2026
+
+- Keep the note editor within the visible editor pane instead of clipping it above the pane.
+- Move the popup below the selection when space allows.
+- Scroll the popup in short windows and leave the status bar clear.
+
 ## 1.0.14 — November 17, 2026
 
 - Dismiss the mobile annotation bar when you tap outside the editor or leave editing.

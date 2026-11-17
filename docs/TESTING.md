@@ -1,6 +1,16 @@
 # Verification report
 
 
+## 1.0.15 release check — November 17, 2026
+
+- Reproduced a composer extending above the editor pane in the synthetic Obsidian vault.
+- Verified fixed placement and note saving at 900×380, 500×650, and 500×280. The shortest window uses an internal scrollbar and reserves room above the status bar.
+- Added regression coverage for pane-relative placement and reading anchor geometry before the CodeMirror write phase. Existing mobile and rendered-math tests remain included.
+- Locked install, TypeScript, ESLint, formatting, tests, build validation, and Stylelint 18.0.0 checks cover the release files.
+- The development-only dependency advisory and unavailable attestations recorded for 1.0.14 still apply. No dependency or minimum-version changes are included.
+
+
+
 ## 1.0.14 release check — November 17, 2026
 
 - Node 24.21.0, locked install; 47 automated checks, TypeScript, ESLint, formatting, build and artifact checks passed.
