@@ -136,3 +136,12 @@ Mobile uses a dock at the bottom of the visible editor, above visible Obsidian f
 All 46 automated tests, typecheck, official lint, formatting, build, and release metadata checks passed. New regression checks cover mobile/desktop routing, viewport changes, keyboard and host-bar clearance, rotation, active-leaf changes, selection dismissal, and teardown.
 
 A browser preview using the actual editor extensions and plugin CSS verified highlight-only creation, color state, optional note saving and reopening, keyboard dismissal, selection collapse, and a 320px-wide layout without horizontal dock overflow. The preview uses synthetic note content, host chrome, and a simulated keyboard; it is not an Obsidian mobile runtime or a native iOS edit-menu test. Phone testing and a native Obsidian smoke test remain pending for this change. No personal vault was used.
+
+
+## Version 1.0.13: native mobile styling and text-field clipping
+
+The mobile dock uses Obsidian's touch-size, toolbar-option-width, icon, and raised-surface variables. Colors form a command group with a separate round note action, matching the host mobile toolbar structure. Desktop markup and styles are unchanged.
+
+The first-character clipping was reproduced in a browser preview with the mobile rules from Obsidian 1.15.1's shipped stylesheet: the textarea inherited a 24px radius while the plugin set zero padding. Restoring those two old declarations reproduced the clipped “T” in “Test.” The fix gives the inner mobile textarea square corners and 4px theme-based padding; the outer composer retains its rounded border.
+
+The actual plugin controls were checked in light mode at 393px and dark mode at 320px with the host stylesheet. The toolbar measured 44px high, the note icon 24px, all buttons at least 44px wide/high, and no horizontal dock overflow. Color selection while composing, save, and cancel worked. These are browser checks with a simulated keyboard, not a new physical iOS test. The host stylesheet and preview harness remain local verification inputs, not redistributed plugin assets.

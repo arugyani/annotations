@@ -1,10 +1,10 @@
-Keep annotation controls clear of the mobile text-selection menu.
+Match the mobile annotation dock to Obsidian’s toolbar and fix clipped text in the note editor.
 
-- On mobile, the color bar stays at the bottom of the visible editor, above Obsidian’s formatting or navigation controls.
-- The bar adjusts when the keyboard opens or closes and when the screen rotates.
-- Tap a color to save a highlight. Tap the speech-bubble icon to add an optional note.
-- Desktop keeps the existing floating selection toolbar.
+- Use Obsidian’s mobile toolbar sizing, spacing, icon proportions, and theme-aware raised surfaces.
+- Group the color controls beside a separate round note button.
+- Fix the clipped first character when typing a note on iOS.
+- Keep the desktop toolbar unchanged.
 
 Requires Obsidian 1.8.7 or later. Existing annotations remain compatible.
 
-Validated with automated tests and an interactive mobile layout preview. Native iOS selection-menu behavior still needs phone testing.
+Validated with automated checks and light/dark mobile layout previews using Obsidian’s stylesheet. Physical iOS verification is pending.

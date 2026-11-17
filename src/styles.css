@@ -545,13 +545,64 @@
   pointer-events: auto;
   flex-shrink: 0;
 }
+/* Obsidian's mobile toolbar uses a 44px command group and a separate
+   round action, inside 8px side insets. Theme variables retain its sizing. */
 .comments-mobile-dock .comments-selection-pill {
+  --icon-size: var(--icon-l, 24px);
+  --icon-stroke: var(--icon-l-stroke-width, 1.8);
+  width: 100%;
   max-width: 100%;
+  height: var(--touch-size-m, 44px);
+  padding: 0;
+  gap: var(--size-4-2, 8px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   box-sizing: border-box;
 }
+.comments-mobile-dock .comments-mobile-colors {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-around;
+  height: 100%;
+  padding: 0 var(--size-4-1, 4px);
+  border-radius: var(--touch-size-m, 44px);
+  background: var(--touch-background, var(--background-secondary));
+}
 .comments-mobile-dock .comments-selection-pill button {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--toolbar-option-width, 40px);
+  min-height: var(--touch-size-m, 44px);
+  height: var(--touch-size-m, 44px);
+  color: var(--text-normal);
+}
+.comments-mobile-dock .comments-mobile-colors .comments-swatch {
+  flex: 1;
+}
+.comments-mobile-dock .comments-selection-pill .comments-selection-note {
+  width: var(--touch-size-m, 44px);
+  min-width: var(--touch-size-m, 44px);
+  border-radius: var(--touch-size-m, 44px);
+  background: var(--touch-background, var(--background-secondary));
+}
+/* mod-raised supplies the host's iOS edge mask. Preserve its theme surface
+   against the more specific button/background rules above. */
+body.is-floating-nav .comments-mobile-dock .mod-raised {
+  background: var(
+    --raised,
+    var(--raised-background, var(--background-primary))
+  );
+  border: var(--raised, var(--raised-mask-border-width, 0px) solid transparent);
+  backdrop-filter: var(--raised, var(--raised-blur, none));
+  box-shadow: var(--raised, var(--raised-shadow, var(--shadow-s)));
+  position: relative;
+}
+.comments-mobile-dock .comments-selection-note svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  stroke-width: var(--icon-stroke);
 }
 .comments-mobile-dock .comments-swatch > span {
   width: 24px;
@@ -565,4 +616,8 @@
 }
 .comments-mobile-dock .comments-inline-compose textarea {
   font-size: 16px;
+  /* The host's mobile textarea radius clips unpadded first-line glyphs. The
+     outer composer owns the rounded border; this inner editor stays square. */
+  border-radius: 0;
+  padding: var(--size-4-1, 4px);
 }

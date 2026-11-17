@@ -49,6 +49,22 @@ export function mobileSelectionDock(
         if (!this.toolbar) {
           this.toolbar = create(this.view);
           this.toolbar.dom.classList.add("comments-mobile-dock");
+          const pill = this.toolbar.dom.querySelector<HTMLElement>(
+            ".comments-selection-pill",
+          );
+          if (pill) {
+            // Match Obsidian's mobile row: a command group and one separate
+            // round action, using the host's raised-surface treatment.
+            const colors = pill.createDiv();
+            colors.className = "comments-mobile-colors mod-raised";
+            for (const swatch of pill.querySelectorAll(".comments-swatch"))
+              colors.appendChild(swatch);
+            pill.prepend(colors);
+            pill.querySelector(".comments-pill-separator")?.remove();
+            pill
+              .querySelector(".comments-selection-note")
+              ?.classList.add("mod-raised");
+          }
           this.toolbar.dom.addEventListener("pointerdown", (event) => {
             if ((event.target as Element).closest("button"))
               event.preventDefault();
