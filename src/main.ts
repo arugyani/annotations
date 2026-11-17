@@ -1,5 +1,6 @@
 import {
   Plugin,
+  Platform,
   ItemView,
   Menu,
   Scope,
@@ -193,6 +194,7 @@ export default class CommentsPlugin extends Plugin {
             deactivate();
           };
         },
+        Platform.isMobileApp,
       ),
     ]);
     this.addCommand({

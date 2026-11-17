@@ -519,3 +519,50 @@
 .tooltip.comments-note-preview .tooltip-arrow {
   display: none;
 }
+
+/* Mobile controls are docked independently of the native selection menu. */
+.comments-selection-tooltip.comments-mobile-dock {
+  position: fixed;
+  left: var(--comments-dock-left);
+  top: var(--comments-dock-bottom);
+  width: var(--comments-dock-width);
+  max-height: var(--comments-dock-height);
+  transform: translateY(-100%);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 8px max(8px, env(safe-area-inset-right))
+    max(8px, var(--comments-dock-safe-bottom, env(safe-area-inset-bottom)))
+    max(8px, env(safe-area-inset-left));
+  z-index: var(--layer-popover, 100);
+  pointer-events: none;
+  overflow-y: auto;
+  --comments-enter-y: 6px;
+}
+.comments-mobile-dock > * {
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+.comments-mobile-dock .comments-selection-pill {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.comments-mobile-dock .comments-selection-pill button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.comments-mobile-dock .comments-swatch > span {
+  width: 24px;
+  height: 24px;
+}
+.comments-mobile-dock .comments-inline-compose {
+  width: 100%;
+  max-width: 360px;
+  box-sizing: border-box;
+  margin: 0;
+}
+.comments-mobile-dock .comments-inline-compose textarea {
+  font-size: 16px;
+}

@@ -14,6 +14,7 @@ import {
   type Tooltip,
   type TooltipView,
 } from "@codemirror/view";
+import { mobileSelectionDock } from "./mobile-dock";
 import { COLORS, newComment, type Color } from "./model";
 import { annotationState, changeComments } from "./editor";
 import {
@@ -466,6 +467,7 @@ function selectionToolbar(
 export function editorUX(
   author: () => string,
   bindKeys?: BindComposeKeys,
+  mobile = false,
 ): Extension {
   const create = (view: EditorView) => selectionToolbar(view, author, bindKeys);
   const createMath = (view: EditorView): TooltipView => ({
@@ -490,7 +492,7 @@ export function editorUX(
   });
   function makeTooltip(state: EditorState): Tooltip | null {
     const session = state.field(selectionSession);
-    if (!session) return null;
+    if (!session || mobile) return null;
     const math = state.field(renderedMathSelection);
     if (math)
       return { pos: math.from, end: math.to, above: true, create: createMath };
@@ -511,6 +513,14 @@ export function editorUX(
     renderedMath,
     selectionSession,
     tooltip,
+    ...(mobile
+      ? [
+          mobileSelectionDock(
+            (view) => !!view.state.field(selectionSession),
+            create,
+          ),
+        ]
+      : []),
     EditorView.atomicRanges.of((view) =>
       view.state.field(storedDataVisible)
         ? Decoration.none

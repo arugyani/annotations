@@ -127,3 +127,12 @@ Validated in Obsidian 1.15.1 on macOS in the separate synthetic vault. Computed 
 The DOM regression models Obsidian helpers in separate main and pop-out documents and checks owner-document adoption, highlight creation, optional-note editing, and literal user text. The release validator rejects CSS `!important`. The release contains only the three supported Obsidian assets; the optional public-runner workflow compares a fresh source build with those assets before attesting them.
 
 After the DOM-helper change, the rebuilt plugin was reloaded in the synthetic vault. A new selection displayed all five color controls and the note icon. The optional composer opened with its empty Save button disabled and closed on Cancel. Reading view rendered three native highlight marks with the expected computed purple, blue, and green colors. The note was returned to Live Preview. All 38 tests, typecheck, official lint, formatting, build, and release checks passed.
+
+
+## Version 1.0.12: mobile annotation dock
+
+Mobile uses a dock at the bottom of the visible editor, above visible Obsidian formatting or navigation bars. Desktop keeps the existing selection tooltip. The dock reuses the color and optional-note controls and reduced-motion styles. It follows visual viewport resize/scroll events, uses the owning window, and removes its DOM, listeners, observer, and pending frame when the editor is destroyed.
+
+All 46 automated tests, typecheck, official lint, formatting, build, and release metadata checks passed. New regression checks cover mobile/desktop routing, viewport changes, keyboard and host-bar clearance, rotation, active-leaf changes, selection dismissal, and teardown.
+
+A browser preview using the actual editor extensions and plugin CSS verified highlight-only creation, color state, optional note saving and reopening, keyboard dismissal, selection collapse, and a 320px-wide layout without horizontal dock overflow. The preview uses synthetic note content, host chrome, and a simulated keyboard; it is not an Obsidian mobile runtime or a native iOS edit-menu test. Phone testing and a native Obsidian smoke test remain pending for this change. No personal vault was used.

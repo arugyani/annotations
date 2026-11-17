@@ -12,7 +12,7 @@ Mark a word, a passage, a block, a section, or a complete note. Keep a highlight
 2. Select the text.
 3. Select a color from the toolbar.
 
-The toolbar opens above or below the selected text. The highlight saves immediately. A comment is optional. The five colors are yellow, blue, green, purple, and red.
+On desktop, the toolbar opens above or below the selected text. On mobile, it stays at the bottom of the editor, above the keyboard controls. The highlight saves immediately. A comment is optional. The five colors are yellow, blue, green, purple, and red.
 
 In Live Preview, selecting rendered math annotates the whole equation.
 
