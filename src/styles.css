@@ -580,6 +580,9 @@
 }
 .comments-mobile-dock .comments-mobile-colors .comments-swatch {
   flex: 1;
+  /* The full-width touch target stays invisible, including iOS sticky hover.
+     The color circle's ring already identifies the selected swatch. */
+  background: transparent;
 }
 .comments-mobile-dock .comments-selection-pill .comments-selection-note {
   width: var(--touch-size-m, 44px);

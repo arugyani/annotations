@@ -134,6 +134,9 @@ test("mobile dock follows available viewport and host bars, not the selection; t
   flush();
   assert.equal(dock.isConnected, false);
   leaf.classList.add("mod-active");
+  editor.dispatchEvent(
+    new host.window.FocusEvent("focusin", { bubbles: true }),
+  );
   instance.update({} as any);
   flush();
   assert.equal(created, 2);
@@ -146,6 +149,107 @@ test("mobile dock follows available viewport and host bars, not the selection; t
   flush();
   assert.equal(disconnected, true);
   viewport.dispatchEvent(new host.window.Event("resize"));
+  assert.equal(frames.size, 0);
+  host.window.close();
+});
+
+test("mobile dock dismisses stale selections on outside interaction or blur, but keeps composer focus", () => {
+  const host = new JSDOM(
+    '<body><div id="editor" tabindex="0"></div><button id="outside">Done</button><p id="blank">Blank space</p></body>',
+    { pretendToBeVisual: true },
+  );
+  const { document } = host.window;
+  const editor = document.querySelector<HTMLElement>("#editor")!;
+  Object.defineProperty(host.window, "ResizeObserver", {
+    value: class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
+  const frames = new Map<number, FrameRequestCallback>();
+  let next = 0;
+  host.window.requestAnimationFrame = (fn) => {
+    frames.set(++next, fn);
+    return next;
+  };
+  host.window.cancelAnimationFrame = (id) => frames.delete(id);
+  const flush = () => {
+    for (const [id, fn] of [...frames]) {
+      frames.delete(id);
+      fn(0);
+    }
+  };
+  editor.focus();
+  const instance = mobileSelectionDock(
+    () => true, // CodeMirror retains the same selected range after losing focus.
+    () => {
+      const dom = document.createElement("div");
+      dom.appendChild(document.createElement("textarea"));
+      dom.appendChild(document.createElement("button"));
+      return { dom };
+    },
+  ).create({ dom: editor } as unknown as EditorView);
+  const dock = () => document.querySelector(".comments-mobile-dock");
+  flush();
+  const textarea = dock()!.querySelector("textarea")!;
+  textarea.focus();
+  textarea.value = "Draft note";
+  flush();
+  assert.equal(dock()!.querySelector("textarea")!.value, "Draft note");
+  dock()!
+    .querySelector("button")!
+    .dispatchEvent(
+      new host.window.Event("pointerdown", { bubbles: true, cancelable: true }),
+    );
+  flush();
+  assert.ok(dock(), "color and note controls must not dismiss their own dock");
+
+  document
+    .querySelector("#blank")!
+    .dispatchEvent(new host.window.Event("pointerdown", { bubbles: true }));
+  instance.update({} as any);
+  host.window.dispatchEvent(new host.window.Event("resize"));
+  flush();
+  assert.equal(dock(), null, "a stale selected range must not reopen the dock");
+
+  editor.focus();
+  flush();
+  assert.ok(dock(), "returning to the editor can show its selection controls");
+  document.querySelector<HTMLElement>("#outside")!.focus();
+  flush();
+  assert.equal(dock(), null, "keyboard focus outside also dismisses the dock");
+
+  editor.focus();
+  flush();
+  editor.blur();
+  flush();
+  assert.equal(
+    dock(),
+    null,
+    "leaving editing without a new focus target closes it",
+  );
+
+  editor.focus();
+  flush();
+  const math = editor.appendChild(document.createElement("span"));
+  math.className = "math";
+  math.textContent = "x + y";
+  const range = document.createRange();
+  range.selectNodeContents(math.firstChild!);
+  document.getSelection()!.removeAllRanges();
+  document.getSelection()!.addRange(range);
+  editor.blur();
+  flush();
+  assert.ok(
+    dock(),
+    "native rendered-math selection deliberately blurs the editor",
+  );
+
+  instance.destroy();
+  editor.focus();
+  flush();
+  assert.equal(dock(), null);
   assert.equal(frames.size, 0);
   host.window.close();
 });

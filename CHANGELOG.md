@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.14 — November 17, 2026
+
+- Dismiss the mobile annotation bar when you tap outside the editor or leave editing.
+- Keep color selection and note entry available while the annotation controls have focus.
+- Remove the stretched hover background behind mobile color buttons.
+
 ## 1.0.11 — November 16, 2026
 
 - Style rendered math through a plugin-owned class to satisfy the community CSS review.

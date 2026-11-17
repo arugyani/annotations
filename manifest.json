@@ -1,7 +1,7 @@
 {
   "id": "annotations",
   "name": "Annotations",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "minAppVersion": "1.8.7",
   "description": "Highlight passages and add notes to selections, blocks, sections, or entire files.",
   "author": "Aru Gyani",

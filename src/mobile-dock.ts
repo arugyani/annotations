@@ -16,6 +16,8 @@ export function mobileSelectionDock(
       private toolbar: TooltipView | null = null;
       private frame = 0;
       private destroyed = false;
+      private dismissed = false;
+      private checkFocus = false;
       private document: Document;
       private window: Window;
       private resize: ResizeObserver;
@@ -30,7 +32,10 @@ export function mobileSelectionDock(
         this.window.visualViewport?.addEventListener("scroll", this.schedule);
         this.window.addEventListener("resize", this.schedule);
         this.document.addEventListener("scroll", this.schedule, true);
-        this.document.addEventListener("focusin", this.schedule);
+        this.document.addEventListener("focusin", this.interaction, true);
+        this.document.addEventListener("pointerdown", this.interaction, true);
+        this.document.addEventListener("focusout", this.focusLeft, true);
+        this.window.addEventListener("blur", this.dismiss);
         this.document.addEventListener("pointerup", this.schedule);
         this.sync();
       }
@@ -40,6 +45,7 @@ export function mobileSelectionDock(
       private sync(update?: ViewUpdate) {
         const leaf = this.view.dom.closest(".workspace-leaf");
         if (
+          this.dismissed ||
           !visible(this.view) ||
           (leaf && !leaf.classList.contains("mod-active"))
         ) {
@@ -77,10 +83,57 @@ export function mobileSelectionDock(
         }
         this.schedule();
       }
+      private owns(target: Node | null) {
+        return (
+          !!target &&
+          (this.view.dom.contains(target) ||
+            !!this.toolbar?.dom.contains(target))
+        );
+      }
+      private interaction = (event: Event) => {
+        if (!(event.target instanceof this.document.defaultView!.Node)) return;
+        if (!this.owns(event.target)) {
+          this.dismiss();
+        } else if (this.dismissed) {
+          this.dismissed = false;
+          this.sync();
+        }
+      };
+      private focusLeft = () => {
+        // Focus can move from the editor into the composer in the same event.
+        this.checkFocus = true;
+        this.schedule();
+      };
+      private dismiss = () => {
+        this.dismissed = true;
+        this.close();
+      };
+      private hasNativeMathSelection() {
+        // Rendered math deliberately blurs CodeMirror to keep its native range.
+        const selection = this.document.getSelection();
+        const math = selection?.anchorNode?.parentElement?.closest(".math");
+        return (
+          selection &&
+          !selection.isCollapsed &&
+          math &&
+          this.view.dom.contains(math) &&
+          math.contains(selection.focusNode)
+        );
+      }
       private schedule = () => {
         if (this.destroyed || this.frame) return;
         this.frame = this.window.requestAnimationFrame(() => {
           this.frame = 0;
+          if (this.checkFocus) {
+            this.checkFocus = false;
+            if (
+              !this.owns(this.document.activeElement) &&
+              !this.hasNativeMathSelection()
+            ) {
+              this.dismiss();
+              return;
+            }
+          }
           const leaf = this.view.dom.closest(".workspace-leaf");
           if (leaf && !leaf.classList.contains("mod-active")) {
             this.close();
@@ -159,7 +212,14 @@ export function mobileSelectionDock(
         );
         this.window.removeEventListener("resize", this.schedule);
         this.document.removeEventListener("scroll", this.schedule, true);
-        this.document.removeEventListener("focusin", this.schedule);
+        this.document.removeEventListener("focusin", this.interaction, true);
+        this.document.removeEventListener(
+          "pointerdown",
+          this.interaction,
+          true,
+        );
+        this.document.removeEventListener("focusout", this.focusLeft, true);
+        this.window.removeEventListener("blur", this.dismiss);
         this.document.removeEventListener("pointerup", this.schedule);
         this.close();
       }

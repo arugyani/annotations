@@ -1,10 +1,10 @@
-Match the mobile annotation dock to Obsidian’s toolbar and fix clipped text in the note editor.
+Fix the mobile annotation bar after you leave the editor.
 
-- Use Obsidian’s mobile toolbar sizing, spacing, icon proportions, and theme-aware raised surfaces.
-- Group the color controls beside a separate round note button.
-- Fix the clipped first character when typing a note on iOS.
-- Keep the desktop toolbar unchanged.
+- Close the bar when you tap outside the editor or leave editing.
+- Keep the bar open while you select colors or write a note.
+- Remove the oval background behind mobile color buttons. Keep the selected color ring and full tap area.
+- Keep desktop controls unchanged.
 
 Requires Obsidian 1.8.7 or later. Existing annotations remain compatible.
 
-Validated with automated checks and light/dark mobile layout previews using Obsidian’s stylesheet. Physical iOS verification is pending.
+Checked with automated tests, mobile browser previews, and an isolated Obsidian test vault. Physical iPhone confirmation of these fixes is pending.

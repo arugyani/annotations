@@ -1,5 +1,17 @@
 # Verification report
 
+
+## 1.0.14 release check — November 17, 2026
+
+- Node 24.21.0, locked install; 47 automated checks, TypeScript, ESLint, formatting, build and artifact checks passed.
+- Stylelint 18.0.0 passed on source and generated CSS using the release-review configuration.
+- Reproduced the persistent mobile dock in the prior browser preview. The fixed preview passed outside-tap dismissal, blur, keyboard dismissal, no reopening on resize, recoloring during note entry, and saving. Checked transparent swatch targets and selected rings in light/dark host styles; desktop hover remains unchanged.
+- Installed the packaged files only in the separate synthetic vault. Highlight creation, optional note saving, and plugin disable/re-enable passed with manifest 1.0.14.
+- Physical iPhone verification of these fixes remains pending. Browser checks do not reproduce native iOS keyboard behavior.
+- Dependency audit: nine high-severity entries trace to development-only picomatch 4.0.7 through the lint toolchain (GHSA-fc5q-39xc-vjpf). No patched version is listed. The plugin bundles only its own source; these dependencies are absent from shipped assets. Do not treat the full dependency audit as clean or apply the suggested toolchain downgrade automatically.
+- Artifact attestations remain unavailable under the existing Actions billing restriction. Release files are built and compared locally.
+
+
 Built and tested November 12, 2026 in an isolated Linux cloud workspace. No pre-existing repository or local instructions were present. pstack was absent from the available skill catalog; the requested fallback workflow was used. The cloud runtime and desktop skills supplied setup guidance.
 
 ## Official API references consulted
