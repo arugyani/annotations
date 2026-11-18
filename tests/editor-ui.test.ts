@@ -10,6 +10,7 @@ import {
   selectionSession,
   colorSelection,
   composeSelection,
+  activateHighlight,
 } from "../src/editor-ui";
 import { newComment, serialize, parse } from "../src/model";
 import { showTooltip, type EditorView } from "@codemirror/view";
@@ -28,6 +29,67 @@ const comment = () =>
 const extensions = [anchorFilter, editorUX(() => "Me")];
 const make = (raw = serialize(doc, [comment()])) =>
   EditorState.create({ doc: raw, extensions });
+test("clicking a specific highlight reopens its controls without selecting text or duplicating overlaps", () => {
+  const first = comment(),
+    second = { ...comment(), body: "Another note", color: "green" as const };
+  let state = make(serialize(doc, [first, second]));
+  const view = {
+    get state() {
+      return state;
+    },
+    dispatch(spec: any) {
+      state = state.update(spec).state;
+    },
+  } as EditorView;
+  view.dispatch({ effects: activateHighlight.of(second.id) });
+  assert.equal(state.selection.main.empty, true);
+  assert.equal(state.field(selectionSession)?.highlightId, second.id);
+  assert.equal(state.field(selectionSession)?.reopened, true);
+  assert.ok(state.facet(showTooltip).some(Boolean));
+  view.dispatch({ selection: EditorSelection.single(second.target.from + 1) });
+  assert.equal(
+    state.field(selectionSession)?.highlightId,
+    second.id,
+    "the browser's delayed caret update from the click must not close the pill",
+  );
+  colorSelection(view, "red", "Me");
+  const records = state.field(annotationState).records;
+  assert.equal(records.length, 2);
+  assert.equal(records.find((c) => c.id === first.id)?.color, first.color);
+  assert.equal(records.find((c) => c.id === second.id)?.color, "red");
+  assert.equal(records.find((c) => c.id === second.id)?.body, "Another note");
+  const raw = state.doc.toString();
+  view.dispatch({ effects: activateHighlight.of(null) });
+  assert.equal(state.field(selectionSession), null);
+  assert.equal(state.facet(showTooltip).filter(Boolean).length, 0);
+  assert.equal(state.doc.toString(), raw);
+  view.dispatch({ effects: activateHighlight.of(second.id) });
+  view.dispatch({ effects: composeSelection.of(true) });
+  assert.equal(state.field(selectionSession)?.compose, true);
+  view.dispatch({ selection: EditorSelection.single(0) });
+  assert.equal(state.field(selectionSession), null);
+});
+test("removed or resolved highlights cannot leave reopened controls attached to another record", () => {
+  const c = comment();
+  let state = make(serialize(doc, [c]));
+  const view = {
+    get state() {
+      return state;
+    },
+    dispatch(spec: any) {
+      state = state.update(spec).state;
+    },
+  } as EditorView;
+  view.dispatch({ effects: activateHighlight.of(c.id) });
+  changeComments(view, (records) =>
+    records.map((r) => ({ ...r, status: "resolved" })),
+  );
+  assert.equal(state.field(selectionSession), null);
+  view.dispatch({ effects: activateHighlight.of(c.id) });
+  assert.equal(state.field(selectionSession), null);
+  view.dispatch({ effects: activateHighlight.of("missing") });
+  assert.equal(state.field(selectionSession), null);
+});
 test("validated metadata is hidden without a placeholder or changing file bytes", () => {
   const raw = serialize(doc, [comment()]),
     s = make(raw);

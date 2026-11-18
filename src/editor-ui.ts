@@ -16,7 +16,11 @@ import {
   type TooltipView,
 } from "@codemirror/view";
 import { mobileSelectionDock } from "./mobile-dock";
-import { COLORS, newComment, type Color } from "./model";
+import { newComment, type Color } from "./model";
+import {
+  annotationControls,
+  type BindComposeKeys,
+} from "./annotation-controls";
 import { annotationState, changeComments } from "./editor";
 import {
   renderedMath,
@@ -107,12 +111,54 @@ export interface SelectionSession {
   to: number;
   highlightId: string | null;
   compose: boolean;
+  reopened?: boolean;
 }
 const chooseHighlight = StateEffect.define<string>();
+export const activateHighlight = StateEffect.define<string | null>();
 export const composeSelection = StateEffect.define<boolean>();
 export const selectionSession = StateField.define<SelectionSession | null>({
   create: (state) => sessionFor(state, null),
   update(previous, tr) {
+    const activation = tr.effects.find((e) => e.is(activateHighlight));
+    if (activation && activation.value === null) return null;
+    const caretInHighlight =
+      previous &&
+      tr.newSelection.main.empty &&
+      tr.newSelection.main.head >= previous.from &&
+      tr.newSelection.main.head <= previous.to;
+    if (
+      activation ||
+      (previous?.reopened &&
+        (!tr.selection || caretInHighlight) &&
+        !tr.isUserEvent("input") &&
+        !tr.isUserEvent("delete") &&
+        !tr.effects.some((e) => e.is(selectRenderedMath)))
+    ) {
+      const id = activation?.value ?? previous?.highlightId;
+      const record = tr.state
+        .field(annotationState)
+        .records.find((c) => c.id === id);
+      if (
+        tr.state.readOnly ||
+        tr.state.field(annotationState).error ||
+        !record ||
+        record.status !== "open" ||
+        record.kind === "file" ||
+        record.target.state !== "attached" ||
+        record.target.from === record.target.to
+      )
+        return null;
+      let compose = activation ? false : (previous?.compose ?? false);
+      for (const effect of tr.effects)
+        if (effect.is(composeSelection)) compose = effect.value;
+      return {
+        from: record.target.from,
+        to: record.target.to,
+        highlightId: record.id,
+        compose,
+        reopened: true,
+      };
+    }
     const selection =
       tr.state.field(renderedMathSelection, false) ?? tr.newSelection.main;
     if (selection.from === selection.to) return null;
@@ -142,6 +188,18 @@ export const selectionSession = StateField.define<SelectionSession | null>({
     return next;
   },
 });
+export function openHighlight(view: EditorView, id: string): void {
+  view.dispatch({
+    effects: [selectRenderedMath.of(null), activateHighlight.of(id)],
+  });
+}
+function dismissToolbar(view: EditorView): void {
+  view.dispatch({
+    selection: EditorSelection.single(view.state.selection.main.head),
+    effects: [selectRenderedMath.of(null), activateHighlight.of(null)],
+  });
+  view.focus();
+}
 function sessionFor(
   state: EditorState,
   previous: SelectionSession | null,
@@ -210,87 +268,12 @@ export function colorSelection(
   if (id) view.dispatch({ effects: chooseHighlight.of(id) });
   return id ?? null;
 }
-type BindComposeKeys = (
-  textarea: HTMLTextAreaElement,
-  save: () => void,
-  cancel: () => void,
-) => () => void;
 function selectionToolbar(
   view: EditorView,
   author: () => string,
   bindKeys?: BindComposeKeys,
 ): TooltipView {
   const document = view.dom.ownerDocument;
-  const dom = document.adoptNode(createDiv());
-  dom.className = "comments-selection-tooltip";
-  const pill = dom.createDiv();
-  pill.className = "comments-selection-pill";
-  pill.setAttribute("role", "toolbar");
-  pill.setAttribute("aria-label", "Annotate selection");
-  const swatches = new Map<Color, HTMLButtonElement>();
-  for (const color of COLORS) {
-    const button = pill.createEl("button");
-    button.type = "button";
-    button.className = `comments-swatch comments-${color}`;
-    button.title = `Highlight ${color}`;
-    button.setAttribute("aria-label", button.title);
-    button.setAttribute("aria-pressed", "false");
-    button.createSpan().setAttribute("aria-hidden", "true");
-    button.onmousedown = (event) => event.preventDefault();
-    button.onclick = () => {
-      try {
-        if (origin && !origin.id && currentHighlight(view))
-          throw new Error("This annotation changed. Reopen it before editing.");
-        const id = colorSelection(view, color, author());
-        if (origin && !origin.id && id) {
-          const current = currentHighlight(view);
-          origin.id = id;
-          origin.author = current?.author;
-          origin.status = current?.status;
-        }
-      } catch (e) {
-        showError(e);
-      }
-    };
-    swatches.set(color, button);
-  }
-  const separator = pill.createSpan();
-  separator.className = "comments-pill-separator";
-  separator.setAttribute("aria-hidden", "true");
-  const noteButton = pill.createEl("button");
-  noteButton.className = "comments-selection-note";
-  noteButton.type = "button";
-  const icon = noteButton.createSvg("svg");
-  for (const [name, value] of Object.entries({
-    "aria-hidden": "true",
-    viewBox: "0 0 24 24",
-    width: "16",
-    height: "16",
-    fill: "none",
-    stroke: "currentColor",
-    "stroke-width": "1.7",
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-  }))
-    icon.setAttribute(name, value);
-  const path = icon.createSvg("path");
-  path.setAttribute(
-    "d",
-    "M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9H13a8.5 8.5 0 0 1 8 8v.5Z",
-  );
-  noteButton.onmousedown = (event) => event.preventDefault();
-  noteButton.onclick = () => {
-    view.dispatch({
-      effects: composeSelection.of(
-        !view.state.field(selectionSession)?.compose,
-      ),
-    });
-    if (textarea?.isConnected) textarea.focus();
-  };
-  let panel: HTMLElement | undefined,
-    textarea: HTMLTextAreaElement | undefined,
-    error: HTMLElement | undefined,
-    releaseKeys: (() => void) | undefined;
   let origin:
     | {
         source: typeof view.state.doc;
@@ -302,72 +285,43 @@ function selectionToolbar(
         status: string | undefined;
       }
     | undefined;
-  function showError(reason: unknown) {
-    if (!panel) openPanel();
-    if (error) {
-      error.textContent =
-        reason instanceof Error ? reason.message : String(reason);
-      error.hidden = false;
-    }
-  }
-  function closePanel() {
-    releaseKeys?.();
-    releaseKeys = undefined;
-    panel?.remove();
-    panel = textarea = error = undefined;
-    origin = undefined;
-  }
-  function openPanel() {
-    if (panel) return;
-    const session = view.state.field(selectionSession);
-    if (!session) return;
-    const p = view.state.field(annotationState),
-      current = currentHighlight(view);
-    origin = {
-      source: p.source,
-      from: session.from,
-      to: session.to,
-      body: current?.body ?? "",
-      id: current?.id ?? null,
-      author: current?.author,
-      status: current?.status,
-    };
-    panel = dom.createDiv();
-    panel.className = "comments-inline-compose";
-    panel.setAttribute("role", "group");
-    panel.setAttribute("aria-label", "Note for selected text");
-    textarea = panel.createEl("textarea");
-    textarea.placeholder = "Write a note…";
-    textarea.setAttribute("aria-label", "Note for selected text");
-    textarea.rows = 3;
-    textarea.value = current?.body ?? "";
-    error = panel.createEl("p");
-    error.className = "comments-inline-error";
-    error.hidden = true;
-    error.setAttribute("role", "alert");
-    const actions = panel.createDiv();
-    actions.className = "comments-actions";
-    const cancel = actions.createEl("button");
-    cancel.type = "button";
-    cancel.textContent = "Cancel";
-    cancel.onclick = () => {
-      view.dispatch({ effects: composeSelection.of(false) });
-      view.focus();
-    };
-    const save = actions.createEl("button");
-    save.type = "button";
-    save.className = "mod-cta";
-    save.textContent = "Save note";
-    save.disabled = !textarea.value.trim();
-    textarea.oninput = () => {
-      save.disabled = !textarea!.value.trim();
-    };
-    const submit = () => {
-      if (!textarea?.value.trim() || !origin) return;
-      try {
+  const controls = annotationControls(
+    document,
+    {
+      current: () => currentHighlight(view),
+      composing: () => !!view.state.field(selectionSession)?.compose,
+      beginNote: () => {
+        const session = view.state.field(selectionSession);
+        if (!session) throw new Error("Select a highlight before editing.");
+        const current = currentHighlight(view);
+        origin = {
+          source: view.state.field(annotationState).source,
+          from: session.from,
+          to: session.to,
+          body: current?.body ?? "",
+          id: current?.id ?? null,
+          author: current?.author,
+          status: current?.status,
+        };
+      },
+      setComposing: (open) =>
+        view.dispatch({ effects: composeSelection.of(open) }),
+      color: (color) => {
+        if (origin && !origin.id && currentHighlight(view))
+          throw new Error("This annotation changed. Reopen it before editing.");
+        const id = colorSelection(view, color, author());
+        if (origin && !origin.id && id) {
+          const current = currentHighlight(view);
+          origin.id = id;
+          origin.author = current?.author;
+          origin.status = current?.status;
+        }
+      },
+      save: (body) => {
         const p = view.state.field(annotationState),
           session = view.state.field(selectionSession);
         if (
+          !origin ||
           !session ||
           !p.source.eq(origin.source) ||
           session.from !== origin.from ||
@@ -376,8 +330,7 @@ function selectionToolbar(
           throw new Error(
             "The note changed. Select the target again before saving.",
           );
-        const body = textarea.value.trim(),
-          selected = currentHighlight(view);
+        const selected = currentHighlight(view);
         let id = selected?.id;
         if (origin.id ? selected?.id !== origin.id : !!selected)
           throw new Error("The annotation changed. Select the target again.");
@@ -416,43 +369,14 @@ function selectionToolbar(
             effects: [chooseHighlight.of(id), composeSelection.of(false)],
           });
         view.focus();
-      } catch (e) {
-        showError(e);
-      }
-    };
-    save.onclick = submit;
-    releaseKeys = bindKeys?.(textarea, submit, () => cancel.click());
-    textarea.onkeydown = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        cancel.click();
-      } else if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-        event.preventDefault();
-        event.stopPropagation();
-        submit();
-      }
-    };
-    void Promise.resolve().then(() => {
-      if (textarea?.isConnected) textarea.focus();
-    });
-    view.requestMeasure();
-  }
-  function update() {
-    const current = currentHighlight(view),
-      session = view.state.field(selectionSession);
-    for (const [color, button] of swatches) {
-      const pressed = String(current?.color === color);
-      if (button.getAttribute("aria-pressed") !== pressed)
-        button.setAttribute("aria-pressed", pressed);
-    }
-    const label = current?.body ? "Edit note" : "Add note";
-    noteButton.setAttribute("aria-label", label);
-    noteButton.title = label;
-    if (session?.compose) openPanel();
-    else if (panel) closePanel();
-  }
-  update();
+      },
+      close: () => dismissToolbar(view),
+      focus: () => view.focus(),
+      measure: () => view.requestMeasure(),
+    },
+    bindKeys,
+  );
+  const { dom } = controls;
   let anchor: Rect | null = null;
   return {
     dom,
@@ -460,16 +384,23 @@ function selectionToolbar(
     getCoords: (pos) => {
       // Capture the anchor in CodeMirror's read phase. Its layout APIs cannot
       // be called from positioned(), which runs in the write phase.
-      anchor = view.state.field(renderedMathSelection)
-        ? renderedMathCoordinates(view)
-        : view.coordsAtPos(pos);
+      const session = view.state.field(selectionSession);
+      const math = session?.reopened
+        ? Array.from(
+            view.contentDOM.querySelectorAll<HTMLElement>(
+              ".math.comments-highlight",
+            ),
+          ).find((element) => element.dataset.commentId === session.highlightId)
+        : undefined;
+      anchor =
+        math?.getBoundingClientRect() ??
+        (view.state.field(renderedMathSelection)
+          ? renderedMathCoordinates(view)
+          : view.coordsAtPos(pos));
       return anchor ?? { top: -1e9, bottom: -1e9, left: 0, right: 0 };
     },
-    mount: () => {
-      update();
-      if (textarea) textarea.focus();
-    },
-    update: () => update(),
+    mount: () => controls.mount(),
+    update: () => controls.update(),
     // CodeMirror's default bounds are the window, but Obsidian clips absolute
     // tooltips at the editor pane. Constrain only our popup, not host tooltips.
     resize: false,
@@ -514,7 +445,7 @@ function selectionToolbar(
         dom.style.top = `${parseFloat(dom.style.top) + (nextTop - rect.top) / view.scaleY}px`;
       dom.classList.add("is-positioned");
     },
-    destroy: closePanel,
+    destroy: () => controls.destroy(),
   };
 }
 export function editorUX(
@@ -532,6 +463,7 @@ export function editorUX(
           (e) =>
             e.is(composeSelection) ||
             e.is(chooseHighlight) ||
+            e.is(activateHighlight) ||
             e.is(selectRenderedMath),
         )
         ? makeTooltip(tr.state)
@@ -542,6 +474,16 @@ export function editorUX(
   function makeTooltip(state: EditorState): Tooltip | null {
     const session = state.field(selectionSession);
     if (!session || mobile) return null;
+    if (session.reopened)
+      return {
+        pos: Math.max(
+          session.from,
+          Math.min(state.selection.main.head, session.to),
+        ),
+        end: session.to,
+        above: true,
+        create,
+      };
     const math = state.field(renderedMathSelection);
     if (math) return { pos: math.from, end: math.to, above: true, create };
     const selection = state.selection.main;
@@ -561,6 +503,25 @@ export function editorUX(
     renderedMath,
     selectionSession,
     tooltip,
+    EditorView.domEventHandlers({
+      pointerdown(event, view) {
+        if (
+          view.state.field(selectionSession)?.reopened &&
+          !(event.target as Element).closest(
+            ".comments-highlight, .comments-selection-tooltip",
+          )
+        )
+          view.dispatch({ effects: activateHighlight.of(null) });
+        return false;
+      },
+      keydown(event, view) {
+        if (event.key === "Escape" && view.state.field(selectionSession)) {
+          dismissToolbar(view);
+          return true;
+        }
+        return false;
+      },
+    }),
     ...(mobile
       ? [
           mobileSelectionDock(

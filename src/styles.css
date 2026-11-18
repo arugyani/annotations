@@ -359,7 +359,8 @@
   background: var(--background-modifier-border);
   margin: 0 5px;
 }
-.comments-selection-pill .comments-selection-note {
+.comments-selection-pill .comments-selection-note,
+.comments-selection-pill .comments-selection-close {
   width: 30px;
   flex-shrink: 0;
 }
@@ -389,6 +390,19 @@
   max-height: var(--comments-popup-max-height, none);
 }
 .cm-tooltip.comments-selection-tooltip.is-height-constrained {
+  overflow-y: auto;
+}
+.comments-reading-controls {
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  z-index: var(--layer-popover, 100);
+}
+.comments-reading-controls:not(.comments-mobile-dock) {
+  position: fixed;
+  max-height: var(--comments-popup-max-height, none);
+  max-width: calc(100vw - 16px);
+}
+.comments-reading-controls.is-height-constrained {
   overflow-y: auto;
 }
 .comments-inline-compose .comments-actions {
@@ -586,11 +600,13 @@
 }
 .comments-mobile-dock .comments-mobile-colors .comments-swatch {
   flex: 1;
+  min-width: 0;
   /* The full-width touch target stays invisible, including iOS sticky hover.
      The color circle's ring already identifies the selected swatch. */
   background: transparent;
 }
-.comments-mobile-dock .comments-selection-pill .comments-selection-note {
+.comments-mobile-dock .comments-selection-pill .comments-selection-note,
+.comments-mobile-dock .comments-selection-pill .comments-selection-close {
   width: var(--touch-size-m, 44px);
   min-width: var(--touch-size-m, 44px);
   border-radius: var(--touch-size-m, 44px);
@@ -608,7 +624,8 @@ body.is-floating-nav .comments-mobile-dock .mod-raised {
   box-shadow: var(--raised, var(--raised-shadow, var(--shadow-s)));
   position: relative;
 }
-.comments-mobile-dock .comments-selection-note svg {
+.comments-mobile-dock .comments-selection-note svg,
+.comments-mobile-dock .comments-selection-close svg {
   width: var(--icon-size);
   height: var(--icon-size);
   stroke-width: var(--icon-stroke);

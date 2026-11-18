@@ -2,7 +2,7 @@
 
 Highlight text and add comments to your Obsidian notes.
 
-Mark a word, a passage, a block, a section, or a complete note. Keep a highlight without a comment. Read your comments in the Annotations side panel.
+Mark a word, a passage, a block, a section, or a complete note. Keep a highlight without a comment. Click a highlight to change its color or edit its comment.
 
 ![Selection toolbar and animated highlight reveal.](evidence/annotations-motion.gif)
 
@@ -27,9 +27,17 @@ You can also save with **Cmd+Enter** on macOS or **Ctrl+Enter** on Windows and L
 
 ![The comment editor below the color toolbar, with existing comments in the side panel.](evidence/annotations-comment.png)
 
-## Read your comments
+## Edit a highlight
 
-Select a highlight to open its comments. To open the panel from the command palette, use **Annotations: Open sidebar**.
+1. Click or tap an existing highlight to open its toolbar.
+2. Select a color to change the highlight, or select the speech-bubble icon to edit its comment.
+3. Select **Save note** to save a comment. Select **X** to close the toolbar without removing the highlight.
+
+These controls also work in Reading view. The note stays in Reading view while you edit its annotations.
+
+## Use the side panel
+
+Use the side panel to search and manage annotations. Open it from the command palette with **Annotations: Open sidebar**.
 
 - Select a quotation to go to its text.
 - Select the search icon to find a comment.

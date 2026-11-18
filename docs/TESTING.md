@@ -167,3 +167,14 @@ The mobile dock uses Obsidian's touch-size, toolbar-option-width, icon, and rais
 The first-character clipping was reproduced in a browser preview with the mobile rules from Obsidian 1.15.1's shipped stylesheet: the textarea inherited a 24px radius while the plugin set zero padding. Restoring those two old declarations reproduced the clipped “T” in “Test.” The fix gives the inner mobile textarea square corners and 4px theme-based padding; the outer composer retains its rounded border.
 
 The actual plugin controls were checked in light mode at 393px and dark mode at 320px with the host stylesheet. The toolbar measured 44px high, the note icon 24px, all buttons at least 44px wide/high, and no horizontal dock overflow. Color selection while composing, save, and cancel worked. These are browser checks with a simulated keyboard, not a new physical iOS test. The host stylesheet and preview harness remain local verification inputs, not redistributed plugin assets.
+
+
+## Version 1.0.16: edit existing highlights in place
+
+Verified November 17, 2026 in the dedicated synthetic vault on Obsidian 1.15.1. Clicking an existing editor highlight reopened its toolbar; recoloring, adding and editing notes, saving, and dismissing with X kept one annotation. Reading-view controls updated the visible mark and persisted data without changing view mode or opening a sidebar. Changing color preserved the note draft. Escape canceled an unsaved draft. Enter on a focused Reading-view mark opened and focused the controls; keyboard recoloring and Ctrl+Enter saving worked. Disabling the plugin removed the popup, and re-enabling succeeded.
+
+The engine/DOM suite covers exact annotation selection with overlapping ranges, invalidated targets, draft preservation, refusal of stale saves, and Reading-view cleanup. Local mobile previews at 320px and 390px checked reopening, note editing, draft preservation during recoloring, and all seven touch targets remaining inside the viewport. These previews are not physical iOS testing. No personal notes were used.
+
+The 1.0.16 local release pipeline passed all 51 tests, TypeScript, Obsidian ESLint, formatting, and the host-only bundle checks on Node.js 24.21.0. Stylelint 18.0.0 passed for source and generated CSS. The dependency audit still reports the development-only picomatch ReDoS advisory (GHSA-fc5q-39xc-vjpf), now propagated through nine lint-tool packages. Those packages are not included in the plugin bundle; no runtime dependency was added. Artifact attestations remain unavailable under the existing Actions constraint.
+
+The final native package check reproduced a cached Reading-view mark retaining an earlier annotation ID after a metadata-only edit. Matching open previews now rerender when the note is saved. The complete editor-to-Reading flow, persisted color/body checks, keyboard controls, and unload cleanup passed again with this correction.

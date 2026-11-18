@@ -39,7 +39,13 @@ import {
 import type { EditorView } from "@codemirror/view";
 import type { Parsed } from "./model";
 import { readAuthor } from "./settings";
-import { editorUX, toggleStoredData, composeSelection } from "./editor-ui";
+import { ReadingAnnotationControls } from "./reading-controls";
+import {
+  editorUX,
+  toggleStoredData,
+  composeSelection,
+  openHighlight,
+} from "./editor-ui";
 interface NoteSnapshot extends Parsed {
   readonly lineStarts: number[];
 }
@@ -84,7 +90,14 @@ export default class CommentsPlugin extends Plugin {
   private editorViews = new WeakMap<Editor, EditorView>();
   private liveNotes = new WeakMap<AnnotationSnapshot, NoteSnapshot>();
   private readNotes = new Map<TFile, Promise<NoteSnapshot>>();
+  private readingControls:
+    { file: TFile; popup: ReadingAnnotationControls } | undefined;
+  private readingActivation = 0;
   async onload() {
+    this.register(() => {
+      this.readingActivation++;
+      this.readingControls?.popup.close();
+    });
     this.author = readAuthor(await this.loadData());
     this.app.workspace.onLayoutReady(() => {
       if (!this.unloaded) {
@@ -149,7 +162,7 @@ export default class CommentsPlugin extends Plugin {
     );
     this.registerEditorExtension([
       editorExtension(
-        (ids) => void this.reveal(ids),
+        (ids, view) => openHighlight(view, ids[0]),
         (view, _snapshot) => {
           const info = view.state.field(editorInfoField, false);
           if (info?.editor && this.editorViews.get(info.editor) !== view)
@@ -242,7 +255,11 @@ export default class CommentsPlugin extends Plugin {
     });
     this.registerMarkdownPostProcessor((el, ctx) => this.reading(el, ctx));
     this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => this.refresh()),
+      this.app.workspace.on("active-leaf-change", () => {
+        this.readingActivation++;
+        this.readingControls?.popup.close();
+        this.refresh();
+      }),
     );
     this.registerEvent(
       this.app.workspace.on("editor-change", (_editor, info) => {
@@ -252,6 +269,27 @@ export default class CommentsPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (file instanceof TFile) this.readNotes.delete(file);
+        // A footer-only change leaves prose blocks cached, including old marks.
+        // Refresh matching previews so their annotation IDs and colors stay current.
+        for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+          const view = leaf.view;
+          if (view instanceof MarkdownView && view.file === file)
+            view.previewMode.rerender(true);
+        }
+        const active = this.readingControls;
+        if (active?.file === file)
+          void this.note(active.file)
+            .then((snapshot) => {
+              if (this.readingControls === active)
+                active.popup.refresh(
+                  snapshot.error
+                    ? undefined
+                    : snapshot.records.find((c) => c.id === active.popup.id),
+                );
+            })
+            .catch(() => {
+              if (this.readingControls === active) active.popup.close();
+            });
         if (file === this.activeFile()) this.refresh();
       }),
     );
@@ -264,6 +302,8 @@ export default class CommentsPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         if (file instanceof TFile) this.readNotes.delete(file);
+        if (this.readingControls?.file === file)
+          this.readingControls.popup.close();
         if (file === this.currentFile) {
           this.currentFile = null;
           this.refresh();
@@ -544,8 +584,7 @@ export default class CommentsPlugin extends Plugin {
       (c) => c.target.from < sectionTo && c.target.to > sectionFrom,
     );
     if (!relevant.length) return;
-    // Keep Reading view free of annotation controls. Exact single-node quotations
-    // are interactive highlights; transformed/overlapping ranges remain in the sidebar.
+    // Exact single-node quotations can open their controls in place.
     for (const c of relevant) {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       let node: Node | null;
@@ -566,22 +605,65 @@ export default class CommentsPlugin extends Plugin {
         range.setEnd(hit.node, hit.index + c.target.quote.length);
         const mark = document.adoptNode(createEl("mark"));
         mark.className = `comments-highlight comments-${c.color}`;
+        mark.dataset.commentId = c.id;
         mark.tabIndex = 0;
         mark.setAttribute("role", "button");
         mark.setAttribute("aria-label", c.body || "Open highlight");
         setAnnotationTooltip(mark);
         mark.onclick = () => {
-          void this.reveal([c.id]);
+          if (document.getSelection()?.isCollapsed === false) return;
+          void this.openReadingControls(file, c.id, mark);
         };
         mark.onkeydown = (event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            void this.reveal([c.id]);
+            void this.openReadingControls(file, c.id, mark, true);
           }
         };
         range.surroundContents(mark);
         marks.push(mark);
       }
+    }
+  }
+  private async openReadingControls(
+    file: TFile,
+    id: string,
+    mark: HTMLElement,
+    keyboard = false,
+  ) {
+    const activation = ++this.readingActivation;
+    this.readingControls?.popup.close();
+    try {
+      const snapshot = await this.note(file);
+      if (
+        this.unloaded ||
+        activation !== this.readingActivation ||
+        !mark.isConnected
+      )
+        return;
+      const record = snapshot.error
+        ? undefined
+        : snapshot.records.find(
+            (c) =>
+              c.id === id &&
+              c.status === "open" &&
+              c.target.state === "attached",
+          );
+      if (!record) return;
+      const popup = new ReadingAnnotationControls(
+        mark,
+        record,
+        (fn) => this.change(file, fn),
+        Platform.isMobileApp,
+        () => {
+          if (this.readingControls?.popup === popup)
+            this.readingControls = undefined;
+        },
+      );
+      this.readingControls = { file, popup };
+      if (keyboard) popup.focusControls();
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : String(error));
     }
   }
 }

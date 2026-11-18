@@ -249,7 +249,7 @@ export function changeComments(
 }
 
 export function editorExtension(
-  reveal: (ids: string[]) => void,
+  activate: (ids: string[], view: EditorView) => void,
   observe?: (view: EditorView, snapshot: AnnotationSnapshot) => void,
   preview?: (element: HTMLElement) => void,
 ) {
@@ -385,10 +385,19 @@ export function editorExtension(
           },
           click(event, view) {
             if (
+              event.detail > 1 ||
               !view.state.selection.main.empty ||
               view.dom.ownerDocument.getSelection()?.isCollapsed === false
             )
               return false;
+            const mark = (event.target as Element).closest<HTMLElement>(
+              ".comments-highlight",
+            );
+            const clicked = mark?.dataset.commentId;
+            if (clicked && view.contentDOM.contains(mark)) {
+              activate([clicked], view);
+              return true;
+            }
             const pos = view.posAtCoords({
               x: event.clientX,
               y: event.clientY,
@@ -406,7 +415,7 @@ export function editorExtension(
                   pos < c.target.to,
               )
               .map((c) => c.id);
-            if (ids.length) reveal(ids);
+            if (ids.length) activate(ids, view);
             return false;
           },
         },

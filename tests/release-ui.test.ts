@@ -94,7 +94,7 @@ test("the inline editor belongs to its pop-out document and saves user text lite
   document.body.appendChild(tip.dom);
   tip.mount?.(view);
   assert.equal(tip.dom.ownerDocument, document);
-  assert.equal(tip.dom.querySelectorAll("button").length, 6);
+  assert.equal(tip.dom.querySelectorAll("button").length, 7);
   const colors =
     tip.dom.querySelectorAll<HTMLButtonElement>(".comments-swatch");
   colors[1].click();
