@@ -23,6 +23,7 @@ import {
   type Comment,
   type Parsed,
 } from "./model";
+import { NativeHighlightPresentation } from "./native-highlight-presentation";
 import { nativeChanges, refreshNative } from "./native-highlight";
 
 /** Validated state belongs to this immutable editor document, never to a file path. */
@@ -288,11 +289,16 @@ export function editorExtension(
         private pending = new Set<string>();
         private animations = new Map<HTMLElement, Animation>();
         private destroyed = false;
+        private nativePresentation: NativeHighlightPresentation;
         constructor(view: EditorView) {
+          this.nativePresentation = new NativeHighlightPresentation(
+            view.contentDOM,
+          );
           this.decorations = this.build(view);
           observe?.(view, view.state.field(annotationState));
         }
         update(u: ViewUpdate) {
+          this.nativePresentation.schedule();
           if (u.docChanged) {
             const next = u.state.field(annotationState);
             this.decorations = next.mapped
@@ -371,6 +377,7 @@ export function editorExtension(
         }
         destroy() {
           this.destroyed = true;
+          this.nativePresentation.destroy();
           this.pending.clear();
           for (const animation of this.animations.values()) animation.cancel();
           this.animations.clear();

@@ -590,6 +590,26 @@ export function editorUX(
           mobileSelectionDock(
             (view) => !!view.state.field(selectionSession),
             create,
+            (view) => {
+              const session = view.state.field(selectionSession);
+              if (!session) return [];
+              if (view.state.field(renderedMathSelection)) {
+                const math = renderedMathCoordinates(view);
+                if (math) return [math];
+              }
+              const start = view.coordsAtPos(session.from, 1);
+              const end = view.coordsAtPos(session.to, -1);
+              if (start && end)
+                return [
+                  {
+                    left: Math.min(start.left, end.left),
+                    right: Math.max(start.right, end.right),
+                    top: Math.min(start.top, end.top),
+                    bottom: Math.max(start.bottom, end.bottom),
+                  },
+                ];
+              return [start, end].filter((rect): rect is Rect => !!rect);
+            },
           ),
         ]
       : []),

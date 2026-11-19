@@ -18,7 +18,7 @@ import {
 } from "./settings";
 
 export interface PaletteHost {
-  settings: AnnotationSettings;
+  paletteSettings: AnnotationSettings;
   setSettings(settings: AnnotationSettings): void;
   applyPalette(document: Document): void;
 }
@@ -71,7 +71,7 @@ export class CommentsSettings extends PluginSettingTab {
       control.onChange((value) => {
         if (!syncing)
           this.owner.setSettings({
-            ...this.owner.settings,
+            ...this.owner.paletteSettings,
             palette: value as Palette,
           });
       });
@@ -105,7 +105,7 @@ export class CommentsSettings extends PluginSettingTab {
       // The host color picker can fire onChange from setValue.
       syncing = true;
       try {
-        const settings = this.owner.settings;
+        const settings = this.owner.paletteSettings;
         dropdown.setValue(settings.palette);
         for (const [color, button] of swatches) {
           button.setAttribute("aria-expanded", String(selected === color));
@@ -148,10 +148,10 @@ export class CommentsSettings extends PluginSettingTab {
           const hex = hexColor(value);
           if (syncing || !hex) return;
           this.owner.setSettings({
-            ...this.owner.settings,
+            ...this.owner.paletteSettings,
             palette: "custom",
             customColors: {
-              ...paletteColors(this.owner.settings),
+              ...paletteColors(this.owner.paletteSettings),
               [color]: hex,
             },
           });
@@ -196,10 +196,13 @@ export class CommentsSettings extends PluginSettingTab {
             const visibleColors = COLORS.filter((c) =>
               c === color
                 ? enabled
-                : this.owner.settings.visibleColors.includes(c),
+                : this.owner.paletteSettings.visibleColors.includes(c),
             );
             if (visibleColors.length)
-              this.owner.setSettings({ ...this.owner.settings, visibleColors });
+              this.owner.setSettings({
+                ...this.owner.paletteSettings,
+                visibleColors,
+              });
           });
         });
         inputs = { picker, text, toggle };

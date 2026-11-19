@@ -1,20 +1,24 @@
+import { MobileDockPlacement } from "./mobile-dock-placement";
 import { styleMobileControls } from "./annotation-controls";
 import {
   ViewPlugin,
   type EditorView,
+  type Rect,
   type TooltipView,
   type ViewUpdate,
 } from "@codemirror/view";
 
 /** A mobile-only host for the existing selection controls, outside the editor's
- * transformed/clipped DOM. It never follows the selection rectangle. */
+ * transformed/clipped DOM. It stays at an edge instead of following the handles. */
 export function mobileSelectionDock(
   visible: (view: EditorView) => boolean,
   create: (view: EditorView) => TooltipView,
+  targets: (view: EditorView) => readonly Rect[] = () => [],
 ) {
   return ViewPlugin.fromClass(
     class {
       private toolbar: TooltipView | null = null;
+      private placement = new MobileDockPlacement();
       private frame = 0;
       private destroyed = false;
       private dismissed = false;
@@ -137,6 +141,14 @@ export function mobileSelectionDock(
         const bottom = top + (viewport?.height ?? this.window.innerHeight);
         const leaf = this.view.dom.closest(".workspace-leaf") ?? this.view.dom;
         const editor = leaf.getBoundingClientRect();
+        const header = leaf
+          .querySelector(".view-header")
+          ?.getBoundingClientRect();
+        const ceiling = Math.max(
+          top,
+          editor.top,
+          header?.height ? header.bottom : top,
+        );
         const start = Math.max(left, editor.left);
         const end = Math.min(right, editor.right);
         let floor = Math.min(bottom, editor.bottom);
@@ -169,12 +181,17 @@ export function mobileSelectionDock(
         dom.style.setProperty("--comments-dock-bottom", `${floor}px`);
         dom.style.setProperty(
           "--comments-dock-height",
-          `${Math.max(0, floor - top)}px`,
+          `${Math.max(0, floor - ceiling)}px`,
         );
         dom.style.setProperty(
           "--comments-dock-safe-bottom",
           floor < bottom - 1 ? "0px" : "env(safe-area-inset-bottom)",
         );
+        dom.style.setProperty(
+          "--comments-dock-safe-top",
+          ceiling > top ? "0px" : "env(safe-area-inset-top)",
+        );
+        this.placement.update(dom, ceiling, floor, targets(this.view));
         dom.classList.add("is-positioned");
       }
       private close() {
@@ -183,6 +200,7 @@ export function mobileSelectionDock(
         this.toolbar.destroy?.();
         this.toolbar.dom.remove();
         this.toolbar = null;
+        this.placement.reset();
       }
       destroy() {
         this.destroyed = true;

@@ -70,6 +70,38 @@ for (const mobile of [false, true])
       },
     );
     t.after(() => popup.close());
+    if (mobile) {
+      const pane = document.querySelector<HTMLElement>(
+        ".markdown-reading-view",
+      )!;
+      pane.getBoundingClientRect = () =>
+        new host.window.DOMRect(0, 40, 390, 728);
+      let targetTop = 730;
+      mark.getClientRects = () =>
+        [
+          new host.window.DOMRect(20, targetTop, 120, 24),
+        ] as unknown as DOMRectList;
+      const dock = document.querySelector<HTMLElement>(
+        ".comments-mobile-dock",
+      )!;
+      dock.getBoundingClientRect = () =>
+        new host.window.DOMRect(0, 708, 390, 60);
+      const frame = () =>
+        new Promise<void>((resolve) =>
+          host.window.requestAnimationFrame(() => resolve()),
+        );
+      await frame();
+      assert.ok(dock.classList.contains("is-docked-top"));
+      assert.equal(dock.style.getPropertyValue("--comments-dock-top"), "40px");
+      targetTop = 180;
+      host.window.dispatchEvent(new host.window.Event("resize"));
+      await frame();
+      assert.ok(
+        dock.classList.contains("is-docked-top"),
+        "Reading controls stay at the same edge for this highlight",
+      );
+    }
+
     const button = (label: string) =>
       document.querySelector<HTMLButtonElement>(
         `button[aria-label="${label}"]`,

@@ -12,7 +12,7 @@ Mark a word, a passage, a block, a section, or a complete note. Keep a highlight
 2. Select the text.
 3. Select a color from the toolbar.
 
-On desktop, the toolbar opens above or below the selected text. On mobile, it stays at the bottom of the editor, above the keyboard controls. The highlight saves immediately. A comment is optional. The six colors are yellow, blue, green, purple, red, and orange.
+On desktop, the toolbar opens above or below the selected text. On mobile, it stays above the keyboard controls. If the selected text reaches the toolbar, the toolbar moves to the top and stays there until the selection ends. The highlight saves immediately. A comment is optional. The six colors are yellow, blue, green, purple, red, and orange.
 
 On Obsidian 1.14 or later, new highlights on plain text use the native highlight format. They stay visible when Annotations is disabled. Existing annotations and complex selections keep their current format.
 

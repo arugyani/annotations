@@ -1,3 +1,4 @@
+import { MobileDockPlacement } from "./mobile-dock-placement";
 import { annotationControls, styleMobileControls } from "./annotation-controls";
 import { COLORS, type Color, type Comment } from "./model";
 
@@ -13,6 +14,7 @@ export class ReadingAnnotationControls {
   private disposed = false;
   private focusPending = false;
   private compose = false;
+  private placement = new MobileDockPlacement();
   private original: Comment | undefined;
   readonly id: string;
   constructor(
@@ -216,6 +218,15 @@ export class ReadingAnnotationControls {
         bottom = Math.min(bottom, r.top);
     }
     if (this.mobile) {
+      const header = this.pane
+        .closest(".workspace-leaf")
+        ?.querySelector(".view-header")
+        ?.getBoundingClientRect();
+      const ceiling = Math.max(
+        top,
+        pane.top,
+        header?.height ? header.bottom : top,
+      );
       dom.style.setProperty("--comments-dock-left", `${start}px`);
       dom.style.setProperty(
         "--comments-dock-width",
@@ -227,13 +238,23 @@ export class ReadingAnnotationControls {
       );
       dom.style.setProperty(
         "--comments-dock-height",
-        `${Math.max(0, bottom - top)}px`,
+        `${Math.max(0, Math.min(bottom, pane.bottom) - ceiling)}px`,
       );
       dom.style.setProperty(
         "--comments-dock-safe-bottom",
         bottom < top + (viewport?.height ?? this.window.innerHeight)
           ? "0px"
           : "env(safe-area-inset-bottom)",
+      );
+      dom.style.setProperty(
+        "--comments-dock-safe-top",
+        ceiling > top ? "0px" : "env(safe-area-inset-top)",
+      );
+      this.placement.update(
+        dom,
+        ceiling,
+        Math.min(bottom, pane.bottom),
+        Array.from(anchor.getClientRects()),
       );
     } else {
       dom.style.setProperty(

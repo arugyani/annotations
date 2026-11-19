@@ -132,8 +132,6 @@
   border-radius: 3px;
   background: var(--comment-tint);
   color: var(--text-normal);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
 }
 .comments-panel
   .comments-card
@@ -386,24 +384,10 @@
 }
 /* Keep the existing pill and clean Live Preview for highlights we own.
    Source mode and unrelated native highlights retain Obsidian's controls. */
-.markdown-source-view.is-live-preview .cm-highlight:has(> .comments-native) {
+.markdown-source-view.is-live-preview .comments-native-surface {
   background-color: transparent;
 }
-.markdown-source-view.is-live-preview
-  .cm-highlight-color-widget:has(
-    + .cm-widgetBuffer + .cm-highlight > .comments-native
-  ),
-.markdown-source-view.is-live-preview
-  .cm-formatting-highlight:not(.cm-formatting-highlight-end):has(
-    + .cm-widgetBuffer
-      + .cm-highlight-color-widget
-      + .cm-widgetBuffer
-      + .cm-highlight
-      > .comments-native
-  ),
-.markdown-source-view.is-live-preview
-  .cm-highlight:has(> .comments-native)
-  + .cm-formatting-highlight-end {
+.markdown-source-view.is-live-preview .comments-native-syntax {
   display: none;
 }
 .markdown-source-view.mod-cm6
@@ -703,6 +687,17 @@
   pointer-events: none;
   overflow-y: auto;
   --comments-enter-y: 6px;
+}
+.comments-selection-tooltip.comments-mobile-dock.is-docked-top {
+  top: var(--comments-dock-top);
+  transform: none;
+  flex-direction: column;
+  padding-top: max(
+    8px,
+    var(--comments-dock-safe-top, env(safe-area-inset-top))
+  );
+  padding-bottom: 8px;
+  --comments-enter-y: -6px;
 }
 .comments-mobile-dock > * {
   pointer-events: auto;

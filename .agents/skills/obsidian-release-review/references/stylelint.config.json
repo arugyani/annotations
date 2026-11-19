@@ -1,6 +1,13 @@
 {
   "rules": {
     "declaration-no-important": true,
-    "selector-type-no-unknown": true
+    "selector-type-no-unknown": true,
+    "selector-pseudo-class-disallowed-list": [
+      "has"
+    ],
+    "property-disallowed-list": [
+      "box-decoration-break",
+      "-webkit-box-decoration-break"
+    ]
   }
 }

@@ -18,6 +18,7 @@ Sources: [submission](https://docs.obsidian.md/plugins/releasing/submit-plugin),
 - Run [Obsidian's ESLint plugin](https://github.com/obsidianmd/eslint-plugin) on applicable source and manifest files. Review scanner findings even if local lint passes: versions and inference can differ.
 - Prefer Obsidian DOM helpers (`createEl`, `createDiv`, `createSpan`, `createSvg`). Render user note text literally rather than injecting HTML.
 - Preserve the owning document when constructing/querying controls. If a global helper creates a detached node, adopt it into the intended document where needed. Use owner-window constructors or cross-window instance helpers. Do not fix lint by reverting to main-window globals.
+- Check plugin-owned field names against new SDK members: a `Plugin & PaletteHost` intersection using `settings` triggered the newer `Plugin.settings` API check in 1.0.17. Use a distinct property name for privately managed palettes; do not raise the minimum version solely to mask a naming collision.
 - Validate synced/plugin settings. Use supported vault/editor APIs and atomic changes for concurrent edits. Refuse to overwrite malformed/unsupported annotation data.
 - Guard deferred views before assuming a concrete type. Reveal/load when needed; do not eagerly load all leaves to bypass deferral.
 - Keep startup and view constructors light. Defer suitable work until layout readiness; avoid startup vault scans/network work. A measured warm enable time is not a cold-start guarantee.
@@ -31,6 +32,7 @@ Sources: [load time](https://docs.obsidian.md/plugins/guides/load-time), [pop-ou
 - Run separate CSS checks: TypeScript/ESLint did not catch the historical CSS findings.
 - Replace `!important` with scoped selectors/variables. Verify affected computed styles: hidden controls, selected rows, target buttons, highlights, narrow layouts, high-contrast borders. A syntactically valid selector can still fail to match.
 - Avoid unknown custom-element type selectors in plugin CSS. For MathJax, target a plugin-owned class on the precise node and remove it on cleanup. Do not broaden to all descendants or disable the lint rule. JS locating a host element by tag is distinct from a CSS type selector.
+- Avoid `:has` and `box-decoration-break` (including its prefixed form), which triggered Annotations 1.0.17 review findings. Use scoped owned classes with lifecycle cleanup instead of broad relational selectors.
 - Scope rules and prefer theme variables. Check light/dark contrast when changing colors.
 - Respect both system reduced-motion preferences and Obsidian's reduced-motion state. Verify controls remain usable without animation after specificity changes.
 - Preserve keyboard focus, accessible names on icon-only controls, touch targets, and optional-note behavior. A narrow desktop screenshot is not physical mobile testing.

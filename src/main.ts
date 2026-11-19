@@ -84,7 +84,7 @@ function setAnnotationTooltip(element: HTMLElement) {
 }
 export default class CommentsPlugin extends Plugin {
   readonly author = "Me";
-  settings = readSettings(undefined);
+  paletteSettings = readSettings(undefined);
   private paletteStyles = new PaletteStyles();
   private settingsQueue: Promise<void> = Promise.resolve();
   selected: string[] = [];
@@ -105,7 +105,7 @@ export default class CommentsPlugin extends Plugin {
       this.readingActivation++;
       this.readingControls?.popup.close();
     });
-    this.settings = readSettings(await this.loadData());
+    this.paletteSettings = readSettings(await this.loadData());
     this.app.workspace.onLayoutReady(() => {
       if (!this.unloaded) {
         this.currentFile = this.app.workspace.getActiveFile();
@@ -218,7 +218,7 @@ export default class CommentsPlugin extends Plugin {
         },
         Platform.isMobileApp,
         requireApiVersion("1.14.0"),
-        () => this.settings.visibleColors,
+        () => this.paletteSettings.visibleColors,
       ),
     ]);
     this.addCommand({
@@ -323,16 +323,16 @@ export default class CommentsPlugin extends Plugin {
     );
   }
   async onExternalSettingsChange() {
-    this.settings = readSettings(await this.loadData());
-    this.paletteStyles.update(this.settings);
+    this.paletteSettings = readSettings(await this.loadData());
+    this.paletteStyles.update(this.paletteSettings);
   }
   applyPalette(document: Document) {
-    this.paletteStyles.apply(document, this.settings);
+    this.paletteStyles.apply(document, this.paletteSettings);
   }
   setSettings(settings: AnnotationSettings) {
-    this.settings = readSettings(settings);
-    this.paletteStyles.update(this.settings);
-    const snapshot = this.settings;
+    this.paletteSettings = readSettings(settings);
+    this.paletteStyles.update(this.paletteSettings);
+    const snapshot = this.paletteSettings;
     this.settingsQueue = this.settingsQueue
       .catch(() => {})
       .then(() => this.saveData(snapshot));
@@ -763,7 +763,7 @@ export default class CommentsPlugin extends Plugin {
           if (this.readingControls?.popup === popup)
             this.readingControls = undefined;
         },
-        () => this.settings.visibleColors,
+        () => this.paletteSettings.visibleColors,
       );
       this.readingControls = { file, popup };
       if (keyboard) popup.focusControls();

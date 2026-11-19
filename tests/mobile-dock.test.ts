@@ -79,6 +79,7 @@ test("mobile dock follows available viewport and host bars, not the selection; t
       fn(0);
     }
   };
+  let targetTop = 100;
   let visible = true,
     created = 0,
     destroyed = 0;
@@ -89,6 +90,7 @@ test("mobile dock follows available viewport and host bars, not the selection; t
       created++;
       const dom = document.createElement("div");
       dom.className = "comments-selection-tooltip";
+      dom.getBoundingClientRect = () => rect(0, 370, width, 60);
       dom.appendChild(document.createElement("button"));
       return {
         dom,
@@ -97,6 +99,7 @@ test("mobile dock follows available viewport and host bars, not the selection; t
         },
       };
     },
+    () => [rect(20, targetTop, 120, 24)],
   );
   const instance = plugin.create(view);
   flush();
@@ -113,6 +116,24 @@ test("mobile dock follows available viewport and host bars, not the selection; t
   flush();
   assert.equal(created, 1);
   assert.equal(dock.style.getPropertyValue("--comments-dock-bottom"), "430px");
+  assert.equal(dock.classList.contains("is-docked-top"), false);
+  targetTop = 390;
+  instance.update({} as any);
+  flush();
+  assert.equal(
+    dock.classList.contains("is-docked-top"),
+    true,
+    "overlapping selection moves the dock to the top",
+  );
+  assert.equal(dock.style.getPropertyValue("--comments-dock-top"), "40px");
+  targetTop = 100;
+  instance.update({} as any);
+  flush();
+  assert.equal(
+    dock.classList.contains("is-docked-top"),
+    true,
+    "moving the handle back does not bounce the dock",
+  );
   height = 350;
   barTop = 300;
   viewport.dispatchEvent(new host.window.Event("resize"));
@@ -140,6 +161,13 @@ test("mobile dock follows available viewport and host bars, not the selection; t
   instance.update({} as any);
   flush();
   assert.equal(created, 2);
+  assert.equal(
+    document
+      .querySelector(".comments-mobile-dock")!
+      .classList.contains("is-docked-top"),
+    false,
+    "a new session resets placement",
+  );
   visible = false;
   instance.update({} as any);
   assert.equal(document.querySelector(".comments-mobile-dock"), null);

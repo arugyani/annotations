@@ -18,6 +18,10 @@ For `arugyani/annotations`. Reviewed November 16, 2026 using tags, surviving com
 
 The 1.0.7 report passed network-pattern, individual-vault-read, dependency, obfuscation, and byte-for-byte build checks. Historical passes do not certify later code.
 
+## 1.0.17 review follow-up
+
+The community scanner flagged `Plugin.settings` (introduced in 1.13.0) through the settings host intersection, despite the local lint pass. The plugin-managed palette field is now named `paletteSettings`; serialized palette data and minimum app compatibility are unchanged. CSS feedback also flagged `box-decoration-break` and `:has`. The former was removed; native-highlight presentation now attaches scoped classes to owned host syntax and removes them on teardown. The CSS review configuration rejects both patterns going forward. Verify default/source-mode rendering, unrelated native marks, undo/redo, and unload when changing this presentation code.
+
 ## Product regressions when affected
 
 Early hashes below identify archived pre-squash commits and may not be reachable on GitHub. Public verification notes remain in `docs/TESTING.md`.
