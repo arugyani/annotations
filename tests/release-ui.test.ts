@@ -4,23 +4,9 @@ import { JSDOM } from "jsdom";
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { showTooltip, type EditorView } from "@codemirror/view";
 import { anchorFilter, annotationState } from "../src/editor";
-import { editorUX, composeSelection } from "../src/editor-ui";
-import { readAuthor } from "../src/settings";
-
-test("settings reject malformed synced data and preserve a valid author", () => {
-  for (const value of [
-    null,
-    undefined,
-    [],
-    {},
-    "Ada",
-    { author: 42 },
-    { author: {} },
-    { author: "  " },
-  ])
-    assert.equal(readAuthor(value), "Me");
-  assert.equal(readAuthor({ author: "  Ada  " }), "Ada");
-});
+import { editorUX, composeSelection, selectionSession } from "../src/editor-ui";
+import { COLORS, type Color } from "../src/model";
+import { PALETTE_EVENT } from "../src/settings";
 
 test("the inline editor belongs to its pop-out document and saves user text literally", (t) => {
   const popout = new JSDOM("<!doctype html><body></body>");
@@ -62,9 +48,19 @@ test("the inline editor belongs to its pop-out document and saves user text lite
     else Reflect.deleteProperty(globalThis, "createDiv");
   });
   t.after(() => main.window.close());
+  let visibleColors: readonly Color[] = COLORS;
   let state = EditorState.create({
     doc: "A little context.\n",
-    extensions: [anchorFilter, editorUX(() => "Me")],
+    extensions: [
+      anchorFilter,
+      editorUX(
+        () => "Me",
+        undefined,
+        undefined,
+        true,
+        () => visibleColors,
+      ),
+    ],
     selection: EditorSelection.single(2, 8),
   });
   let positioning = false;
@@ -78,6 +74,7 @@ test("the inline editor belongs to its pop-out document and saves user text lite
     dom: editorDOM,
     scrollDOM: editorDOM,
     scaleY: 1,
+    scaleX: 1,
     coordsAtPos() {
       assert.equal(positioning, false, "layout reads belong to the read phase");
       return { top: 204, bottom: 228, left: 100, right: 160 };
@@ -116,6 +113,21 @@ test("the inline editor belongs to its pop-out document and saves user text lite
     tip.dom.style.getPropertyValue("--comments-popup-max-height"),
     "284px",
   );
+  // A pill can fit the window while crossing a split editor's horizontal edge.
+  tip.dom.getBoundingClientRect = () =>
+    new popout.window.DOMRect(400, 100, 250, 40);
+  tip.dom.style.left = "400px";
+  tip.positioned?.({ top: 0, left: 0, right: 1000, bottom: 380 });
+  assert.equal(tip.dom.style.left, "242px");
+  assert.equal(
+    tip.dom.style.getPropertyValue("--comments-popup-max-width"),
+    "484px",
+  );
+  tip.dom.getBoundingClientRect = () =>
+    new popout.window.DOMRect(-20, 100, 250, 40);
+  tip.dom.style.left = "-20px";
+  tip.positioned?.({ top: 0, left: 0, right: 1000, bottom: 380 });
+  assert.equal(tip.dom.style.left, "8px");
   const save = Array.from(tip.dom.querySelectorAll("button")).find(
     (b) => b.textContent === "Save note",
   )!;
@@ -129,6 +141,41 @@ test("the inline editor belongs to its pop-out document and saves user text lite
   assert.equal(state.field(annotationState).records[0].body, text);
   assert.equal(tip.dom.querySelector("script"), null);
   assert.equal(tip.dom.querySelector("textarea"), null);
+  assert.equal(
+    tip.dom.querySelector('[aria-label="Close annotation controls"]'),
+    null,
+  );
+  colors[1].dispatchEvent(
+    new popout.window.Event("pointerdown", { bubbles: true }),
+  );
+  assert.ok(state.field(selectionSession), "using the pill keeps it open");
+  const saved = state.doc.toString();
+  visibleColors = ["green"];
+  document.dispatchEvent(new popout.window.Event(PALETTE_EVENT));
+  assert.deepEqual(
+    Array.from(colors)
+      .filter((button) => !button.hidden)
+      .map((button) => button.getAttribute("aria-label")),
+    ["Highlight blue", "Highlight green"],
+  );
+  assert.equal(
+    state.doc.toString(),
+    saved,
+    "changing visible colors leaves annotations untouched",
+  );
+  document.body.dispatchEvent(
+    new popout.window.Event("pointerdown", { bubbles: true }),
+  );
+  assert.equal(
+    state.field(selectionSession),
+    null,
+    "clicking away dismisses the pill",
+  );
+  assert.equal(
+    state.doc.toString(),
+    saved,
+    "dismissal preserves saved annotations",
+  );
   tip.destroy?.();
   popout.window.close();
 });

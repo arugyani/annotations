@@ -1,5 +1,5 @@
 import { annotationControls, styleMobileControls } from "./annotation-controls";
-import { COLORS, type Comment } from "./model";
+import { COLORS, type Color, type Comment } from "./model";
 
 /** A Reading-view host for the same controls used by the editor. */
 export class ReadingAnnotationControls {
@@ -21,6 +21,7 @@ export class ReadingAnnotationControls {
     private change: (fn: (records: Comment[]) => Comment[]) => Promise<boolean>,
     private mobile: boolean,
     private onClose: () => void,
+    visibleColors: () => readonly Color[] = () => COLORS,
   ) {
     this.id = current.id;
     this.document = anchor.ownerDocument;
@@ -29,45 +30,50 @@ export class ReadingAnnotationControls {
       anchor.closest<HTMLElement>(".markdown-reading-view") ??
       anchor.closest<HTMLElement>(".workspace-leaf") ??
       anchor.parentElement!;
-    this.controls = annotationControls(this.document, {
-      current: () => this.current,
-      composing: () => this.compose,
-      beginNote: () => {
-        this.original = this.current;
+    this.controls = annotationControls(
+      this.document,
+      {
+        current: () => this.current,
+        composing: () => this.compose,
+        beginNote: () => {
+          this.original = this.current;
+        },
+        setComposing: (value) => {
+          this.compose = value;
+          this.schedule();
+        },
+        color: (color) =>
+          this.mutate((record) => ({
+            ...record,
+            color,
+            updated: new Date().toISOString(),
+          })),
+        save: async (body) => {
+          const original = this.original;
+          await this.mutate((record) => {
+            if (
+              !original ||
+              record.body !== original.body ||
+              record.author !== original.author ||
+              record.target.quote !== original.target.quote
+            )
+              throw new Error(
+                "This annotation changed. Reopen it before editing.",
+              );
+            return { ...record, body, updated: new Date().toISOString() };
+          });
+          if (this.disposed) return;
+          this.compose = false;
+          this.controls.update();
+          this.focus();
+        },
+        close: () => this.close(true),
+        focus: () => this.focus(),
+        measure: () => this.schedule(),
       },
-      setComposing: (value) => {
-        this.compose = value;
-        this.schedule();
-      },
-      color: (color) =>
-        this.mutate((record) => ({
-          ...record,
-          color,
-          updated: new Date().toISOString(),
-        })),
-      save: async (body) => {
-        const original = this.original;
-        await this.mutate((record) => {
-          if (
-            !original ||
-            record.body !== original.body ||
-            record.author !== original.author ||
-            record.target.quote !== original.target.quote
-          )
-            throw new Error(
-              "This annotation changed. Reopen it before editing.",
-            );
-          return { ...record, body, updated: new Date().toISOString() };
-        });
-        if (this.disposed) return;
-        this.compose = false;
-        this.controls.update();
-        this.focus();
-      },
-      close: () => this.close(true),
-      focus: () => this.focus(),
-      measure: () => this.schedule(),
-    });
+      undefined,
+      visibleColors,
+    );
     const dom = this.controls.dom;
     dom.classList.add("comments-reading-controls");
     if (mobile) {
@@ -230,6 +236,10 @@ export class ReadingAnnotationControls {
           : "env(safe-area-inset-bottom)",
       );
     } else {
+      dom.style.setProperty(
+        "--comments-popup-max-width",
+        `${Math.max(0, end - start - 16)}px`,
+      );
       const ceiling = Math.max(top, pane.top) + 8,
         floor = Math.min(bottom, pane.bottom) - 8;
       dom.style.setProperty(

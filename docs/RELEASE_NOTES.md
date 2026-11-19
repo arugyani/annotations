@@ -1,12 +1,13 @@
-Edit highlights where you read them.
+Highlight with native colors and manage annotations in a simpler sidebar.
 
-- Click or tap an existing highlight to reopen its color toolbar.
-- Select a color to change the existing highlight.
-- Select the speech-bubble icon to add or edit its note.
-- Select X to close the toolbar without removing the highlight.
-- Edit annotations in Reading view without switching to the editor.
-- Keep your note draft when changing colors, and prevent saves from overwriting a note changed elsewhere.
+- New highlights on ordinary text use native Obsidian highlight syntax on Obsidian 1.14 or later. Existing annotations keep their current format.
+- Choose a palette, customize its shades, and choose which colors appear in the toolbar.
+- Preview each highlight with surrounding text and its saved note underneath. Select the passage to jump to it, or select the note to edit it.
+- Search and filter annotations, select individual items or all shown items, and resolve, reopen, or delete them together.
+- Close the toolbar by clicking or tapping away, or pressing Escape.
+- Keep the toolbar and note editor inside the visible pane, including beside the sidebar and in narrow layouts.
+- Improve sidebar spacing, hover padding, keyboard controls, and color visibility.
 
-Requires Obsidian 1.8.7 or later. Existing annotations remain compatible.
+Requires Obsidian 1.8.7 or later. Earlier app versions use the existing annotation format. Custom palette shades apply while Annotations is enabled; native highlights retain their standard color slots without the plugin.
 
-Verified in a separate Obsidian test vault, including keyboard controls and Reading view. Mobile layouts were checked at 320px and 390px; this release has not yet been tested on a physical phone.
+Verified in a separate Obsidian test vault and at phone-sized layouts. This build has not yet been tested on a physical phone.

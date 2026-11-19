@@ -178,3 +178,90 @@ The engine/DOM suite covers exact annotation selection with overlapping ranges, 
 The 1.0.16 local release pipeline passed all 51 tests, TypeScript, Obsidian ESLint, formatting, and the host-only bundle checks on Node.js 24.21.0. Stylelint 18.0.0 passed for source and generated CSS. The dependency audit still reports the development-only picomatch ReDoS advisory (GHSA-fc5q-39xc-vjpf), now propagated through nine lint-tool packages. Those packages are not included in the plugin bundle; no runtime dependency was added. Artifact attestations remain unavailable under the existing Actions constraint.
 
 The final native package check reproduced a cached Reading-view mark retaining an earlier annotation ID after a metadata-only edit. Matching open previews now rerender when the note is saved. The complete editor-to-Reading flow, persisted color/body checks, keyboard controls, and unload cleanup passed again with this correction.
+
+
+## Native highlights: development verification
+
+Verified November 18, 2026 in the synthetic vault on Obsidian 1.15.1. New ordinary single-line text highlights use native color syntax with an optional `native: true` field on their annotation record. Existing annotations are not migrated. Structured Markdown, overlapping ranges, code, math, multiline selections, and uncertain selections keep the previous representation. Creation falls back to that representation on hosts before 1.14.
+
+Native app checks covered creation, recoloring, note editing, draft preservation, Reading-view controls, repeated quotations, keyboard operation, plugin unload/reload, and native highlights remaining visible while the plugin is disabled. A legacy annotation in the same synthetic note kept its ID, body, target text, and previous representation. Disabling the plugin did not change the file. Owned native swatches and delimiters are hidden only in Live Preview; Source mode retains the source syntax. Orange is supported alongside the five previous colors.
+
+The 60-test suite passes, including native syntax and metadata undo/redo, atomic Reading-view changes, resolve/reopen/delete, external recoloring, detached notes after delimiter removal, and older-host fallback. TypeScript, Obsidian ESLint, formatting, the host-only bundle check, and Stylelint pass. Mobile control previews pass at 320px and 390px; physical iOS verification remains pending. No personal vault was used.
+
+The development pill no longer has an X button. Desktop controls now dismiss on outside pointer/focus interaction and window blur without stealing focus; editor clicks outside a highlight also close the session. Reading view and the mobile dock retain outside dismissal, and Escape remains available. The 60 tests, native test-vault editing flow, and 320px/390px tap-away/reopen previews passed after this change.
+
+
+## Palette settings: development verification
+
+Verified November 18, 2026 in the synthetic vault on Obsidian 1.15.1. The author preference and modal author input are removed; stored authors on existing annotations remain intact. Classic, Soft, Earth, and Custom palettes use the six native color slots. Custom shades use validated CSS variables scoped to plugin classes; palette changes never modify Markdown. Hidden colors stay available when editing an annotation that already uses that color.
+
+Native settings checks covered preset selection, hex entry, invalid-value rejection, custom palette retention across preset switches, visibility toggles, preventing an empty pill, reset, and persistence across plugin reload. Every Markdown file in the test vault was byte-identical before and after the settings checks. Embedded settings and the native separate settings window both passed, including palette synchronization across owning documents. The host color picker can notify its change callback during programmatic updates; settings refreshes suppress these callbacks to avoid recursive writes.
+
+All 63 engine/DOM tests, TypeScript, Obsidian ESLint, formatting, bundle verification, and source/generated Stylelint checks passed. Mobile control previews at 320px and 390px still passed tap-away dismissal, reopening, editing, and draft-preserving recoloring. These are browser previews, not physical iOS tests. The build is installed only in the test vault and has not been published.
+
+The settings layout was then condensed into one palette setting with a six-swatch strip. Only the selected swatch exposes its color picker, hex value, and visibility switch. Native app checks passed preset selection, replacing/collapsing the selected editor, invalid hex rejection, last-color protection, keyboard activation, Escape focus return, and reset. Mobile-class previews at 390px and 320px had no control overflow; the selected color controls stay compact and wrap when needed. All test-vault Markdown files remained unchanged.
+
+## UI alignment: development verification
+
+Verified November 18, 2026 in the synthetic vault on Obsidian 1.15.1. The palette editor no longer inherits the host's nested 20px card inset. Its label shares the heading's left edge, and the desktop color picker, hex field, and visibility control share a center line; the row matches the preset selector's 30px height. The selected swatch uses the pill's ring treatment, with explicit keyboard focus and forced-color support. Sidebar gaps follow 4/8/12/16px spacing, icon controls use consistent sizing, surfaces use host radius variables, and the comment dialog no longer reserves an empty second column.
+
+Native app checks covered settings interactions, light/dark settings, sidebar and composer views, and a dialog color field matching its container width (526px). Phone-width settings previews at 320px and 390px kept all six swatches on one row with no control overflow. The native highlight/edit/reload check and mobile tap-away/reopen/note-edit previews also passed. Source/generated Stylelint, formatting, build, and whitespace checks passed. These previews are not physical iOS testing. Changes are installed in the test vault only; no release was published.
+
+## Sidebar workflow: development verification
+
+Verified November 18, 2026 in the dedicated synthetic vault. Search is always visible above a separately scrolling list. Excerpts use inline highlight color instead of full-width color blocks, notes open directly for editing, and resolve/overflow actions sit beside their excerpt. The duplicate total count and empty action footers are removed. Annotations sort by document position, with detached targets last. Empty search results offer a filter reset; clearing filters also clears the search query. Removing a focused row restores focus to the next excerpt or the active status filter.
+
+Native app checks used eight synthetic annotations stored in reverse document order. Verified displayed order, excerpt navigation to the correct selection, direct note editing, adding notes, resolve/reopen, keyboard focus recovery, search by excerpt, Escape clearing search, empty-result reset, and a stationary search/status area while the list scrolls. Light and dark views were inspected. Rendered mobile previews at 320px and 390px passed horizontal bounds and 44px touch-target checks; these are browser previews, not physical iOS testing. All 63 existing tests, TypeScript, Obsidian ESLint, formatting, build, source/generated CSS lint, and whitespace checks passed. Only the test vault received the development build; nothing was published.
+
+The persistence check explicitly waits for the sidebar filename to change before acting (a reused test fixture initially clicked the previous file's row). A fresh fixture then verified the edited note body on disk after edit, resolve, reopen, search, and excerpt navigation. A plugin reload also retained the edited note in the sidebar and on disk.
+
+Sidebar actions were simplified after visual review: repeated pencil/plus decorations are removed, resolve/reopen uses a text label, and remaining filter/overflow icons use the host's small-icon sizing and stroke variables. Native test-vault checks passed resolve/reopen and direct note editing without changing the saved body. Phone previews at 320px and 390px retained 44px controls and no horizontal overflow. TypeScript, Obsidian ESLint, build, and source/generated CSS lint passed.
+
+## Sidebar selection and single-text rows
+
+Verified November 18, 2026 in a fresh synthetic note. Each row now displays its note as the primary text, or the excerpt for a highlight without a note. Notes expose their excerpt only through a collapsed Context disclosure; Go to text remains available. Normal and selection views were visually inspected in the native app.
+
+Selection uses explicit Select/Done controls, per-row checkboxes, Select all shown with mixed state, Cmd/Ctrl+A in the list, Shift-click ranges, and Escape to exit. Text fields retain their normal select-all shortcut. Search/status/color filtering prunes hidden selections, and switching files exits selection. Bulk resolve/reopen reads the latest records in one mutation; bulk deletion confirms the count and file, then refuses to remove records changed since confirmation opened.
+
+Native app tests passed single-text/context disclosure, individual/range/all/clear selection, filtered selection, keyboard shortcuts, bulk resolve/reopen, delete cancellation/confirmation/conflict refusal, and file-switch reset. New engine tests cover selection boundaries and atomic multi-highlight resolution/deletion while retaining unselected native markers. All 67 tests and the normal validation pipeline passed. Source/generated Stylelint and whitespace checks passed. Mobile-class previews at 320px and 390px showed no overflow and retained 44px control/checkbox-label heights. These are previews, not physical iOS tests. The final build is installed in the synthetic vault only and is unpublished.
+
+Final visual checks also cover the mixed-state Select all dash. Primary rows use their visible text as the accessible name, with the action supplied as an accessible description, so Obsidian does not repeat the full note in an automatic tooltip. The final native preview verified the selection/action descriptions and Done behavior; build, TypeScript, ESLint, and CSS lint passed again after this polish.
+
+Sidebar rows now retain a small, labeled color indicator in both normal and selection modes. Native test-vault checks confirmed one visible indicator per row and immediate updates from a custom palette (including restoring the prior palette afterward). TypeScript, Obsidian ESLint, build, source/generated CSS lint, and whitespace checks passed.
+
+
+## Inline context preview
+
+Verified November 18, 2026 in the synthetic vault on Obsidian 1.15.1. The native Context disclosure is replaced by Show highlighted text / Hide highlighted text. The excerpt opens beneath its note, and its open state survives entering and leaving selection mode. The button exposes its expanded state and controls relationship to assistive technology. Reveal motion respects both system and Obsidian reduced-motion preferences.
+
+Native app checks passed Enter/Space activation, show/hide state, the accessibility relationship, both reduced-motion settings, and selection-mode restoration. The note file remained byte-identical. TypeScript, Obsidian ESLint, formatting, build, source/generated Stylelint, and whitespace checks passed. Rendered previews at 320px and 390px showed no horizontal overflow, retained 44px controls, and kept the list scrollable. These previews are not physical iOS tests. The development build is installed only in the test vault and is unpublished.
+
+The detached sidebar color dots were replaced with inline highlight tint on source excerpts and their show/hide labels. Notes stay uncolored. Context remains available during selection so colors and source text can still guide selection. Native test-vault checks passed toggle keyboard controls, accessibility relationships, reduced motion, selection-mode preview availability, and unchanged Markdown. The updated layout passed 320px/390px overflow and touch-target checks; TypeScript, ESLint, build, and source/generated CSS lint also passed. Inspected the native dark-theme screenshot. No publication or personal-vault changes.
+
+## Excerpt above note
+
+The sidebar now always shows the colored source excerpt first and the note underneath. The context toggle, disclosure state, reveal animation, and redundant Go to text action were removed. Selecting the excerpt navigates to the passage; selecting the note edits it. Both targets toggle selection in selection mode. Highlight-only entries retain Add note.
+
+Verified November 18, 2026 in the synthetic vault: excerpt/note order, keyboard note editing with cancellation, excerpt navigation, selection through either text target, and unchanged Markdown. Inspected the native screenshot. TypeScript, ESLint, build, source/generated CSS lint, and whitespace checks passed. Phone-width previews at 320px and 390px retained 44px controls with no horizontal overflow. These are browser previews, not physical iOS tests. Installed only in the test vault; unpublished.
+
+## Surrounding passage context
+
+Verified November 18, 2026 in a synthetic Passage preview note. Sidebar excerpts now include a short same-line context window before and after the selected text. Only the quotation receives highlight color. The full passage is one navigation target, with the note underneath as its own edit target. Context truncates at word boundaries with ellipses and omits owned native highlight delimiters. Context changes invalidate the displayed row.
+
+Four targeted tests passed for whitespace, line boundaries, native delimiters, truncation, and file annotations. Native app verification confirmed that clicking the surrounding text selects the exact highlighted quotation in the editor; note editing with cancellation and selection via both text targets also passed, without changing the file. Inspected the native screenshot. TypeScript, ESLint, build, source/generated CSS lint, and whitespace checks passed. At 320px and 390px, browser previews retained 44px controls and no horizontal overflow. No personal-vault changes or publication.
+
+Saved notes are now visually separated from their source: passages use quotation marks, while saved comments sit in an inset neutral surface with host border and radius variables. No explanatory label was added. Native test-vault verification passed passage navigation, keyboard note editing/cancellation, and selection through both targets; Markdown remained unchanged. Inspected native and 390px rendered views. 320px/390px overflow and touch-target checks, TypeScript, ESLint, build, CSS lint, and whitespace checks passed. Unpublished.
+
+The sidebar treatment was flattened after visual review: saved comments no longer have nested boxes, quoted passage previews use smaller type, and the passage/comment gap is reduced. Quotation marks and text hierarchy distinguish source from saved comments without labels. Native test-vault navigation, editing/cancellation, and selection checks passed with unchanged Markdown. Inspected the 390px preview; both 320px and 390px retain 44px controls without overflow. Build, source/generated Stylelint, and whitespace checks passed. Unpublished.
+
+## Hover insets and pane-bound controls
+
+Verified November 18, 2026 in the synthetic vault. Sidebar passage/note buttons now have 8px horizontal hover padding with matching negative margins, retaining text alignment. Native geometry checks confirmed both insets and zero text displacement; phone previews passed at 320px and 390px.
+
+Reproduced pill clipping at a 400px editor pane: its right edge was 568px while the pane ended at 444px. The editor tooltip now constrains horizontal position and width to its pane, with scale-aware coordinates. Desktop controls wrap within very narrow panes, and Reading view applies the same width constraint. Native checks at 400px and 220px verified pill/composer bounds, resizing with a preserved draft, and cancellation. Reading-view pill/composer also fit a 220px pane. Regression tests cover left/right clipping alongside existing vertical positioning, and the three affected UI tests passed. TypeScript, ESLint, build, source/generated Stylelint, and whitespace checks passed. Unpublished; test vault only.
+
+## 1.0.17 release review
+
+Reviewed November 18, 2026 against the current official plugin requirements, developer policies, and manifest guidance. Installed the locked dependencies with Node 24 and ran the complete package pipeline: all 71 tests, TypeScript, Obsidian ESLint, formatting, build, compatibility/tag metadata, and host-only bundle checks passed. Dependency audit reported no vulnerabilities. Separate source/generated Stylelint 18.0.0 checks passed; artifact validation found the three required plugin files.
+
+The final build passed native Obsidian 1.15.1 test-vault creation, recoloring, optional note editing, repeated-quotation targeting, Reading-view editing, plugin disable/reload, and legacy-record preservation. Native marks stayed visible with the plugin disabled, with no file changes from disabling. Sidebar, palette, narrow-pane and phone-width evidence is recorded above. Physical-device verification of this build remains pending. Release preparation uses the local build path; artifact attestations are unavailable under the previously observed Actions account restriction.

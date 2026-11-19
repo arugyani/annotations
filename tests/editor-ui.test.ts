@@ -165,7 +165,10 @@ test("color selection creates one highlight immediately and recolors it without 
   assert.equal(s.field(annotationState).records.length, 1);
   assert.equal(s.field(annotationState).records[0].color, "green");
   assert.equal(s.field(annotationState).records[0].id, id);
-  assert.equal(parse(s.doc.toString()).document, doc);
+  assert.equal(
+    parse(s.doc.toString()).document,
+    doc.replace("asdf", "==🟢asdf=="),
+  );
   changeComments(view, (records) =>
     records.map((c) => ({ ...c, body: "Check the coordinates." })),
   );
@@ -248,12 +251,12 @@ test("an annotation at EOF without a final newline keeps its text selection outs
     },
   } as unknown as EditorView;
   colorSelection(view, "blue", "Me");
-  assert.equal(s.field(selectionSession)?.to, 4);
-  assert.equal(s.field(annotationState).start, 4);
+  assert.equal(s.field(selectionSession)?.to, 8);
+  assert.equal(s.field(annotationState).start, 10);
   s = s.update({ selection: EditorSelection.single(s.doc.length) }).state;
-  assert.equal(s.selection.main.head, 4);
-  s = s.update({ changes: { from: 4, insert: "!" } }).state;
-  assert.equal(parse(s.doc.toString()).document, "asdf!");
+  assert.equal(s.selection.main.head, 10);
+  s = s.update({ changes: { from: 10, insert: "!" } }).state;
+  assert.equal(parse(s.doc.toString()).document, "==🔵asdf==!");
   assert.equal(parse(s.doc.toString()).records[0].target.quote, "asdf");
 });
 

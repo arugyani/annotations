@@ -1,6 +1,8 @@
+import { SidebarSelection } from "./sidebar-selection";
 import {
   Plugin,
   Platform,
+  requireApiVersion,
   ItemView,
   Menu,
   Scope,
@@ -12,8 +14,6 @@ import {
   MarkdownRenderChild,
   Modal,
   Notice,
-  Setting,
-  PluginSettingTab,
   TFile,
   type Editor,
   type MarkdownPostProcessorContext,
@@ -38,8 +38,12 @@ import {
 } from "./editor";
 import type { EditorView } from "@codemirror/view";
 import type { Parsed } from "./model";
-import { readAuthor } from "./settings";
+import { readSettings, type AnnotationSettings } from "./settings";
+import { PaletteStyles } from "./palette-styles";
+import { CommentsSettings } from "./settings-tab";
 import { ReadingAnnotationControls } from "./reading-controls";
+import { canUseNative } from "./native-highlight";
+import { sidebarPassage } from "./sidebar-passage";
 import {
   editorUX,
   toggleStoredData,
@@ -79,7 +83,10 @@ function setAnnotationTooltip(element: HTMLElement) {
   });
 }
 export default class CommentsPlugin extends Plugin {
-  author = "Me";
+  readonly author = "Me";
+  settings = readSettings(undefined);
+  private paletteStyles = new PaletteStyles();
+  private settingsQueue: Promise<void> = Promise.resolve();
   selected: string[] = [];
   currentFile: TFile | null = null;
   reattaching: string | null = null;
@@ -98,7 +105,7 @@ export default class CommentsPlugin extends Plugin {
       this.readingActivation++;
       this.readingControls?.popup.close();
     });
-    this.author = readAuthor(await this.loadData());
+    this.settings = readSettings(await this.loadData());
     this.app.workspace.onLayoutReady(() => {
       if (!this.unloaded) {
         this.currentFile = this.app.workspace.getActiveFile();
@@ -121,7 +128,8 @@ export default class CommentsPlugin extends Plugin {
       this.readingLayers.clear();
       this.readNotes.clear();
     });
-    this.addSettingTab(new CommentsSettings(this.app, this));
+    this.register(() => this.paletteStyles.destroy());
+    this.addSettingTab(new CommentsSettings(this));
     this.registerView(VIEW, (l) => new CommentsView(l, this));
     this.addRibbonIcon(
       "message-square",
@@ -164,6 +172,7 @@ export default class CommentsPlugin extends Plugin {
       editorExtension(
         (ids, view) => openHighlight(view, ids[0]),
         (view, _snapshot) => {
+          this.applyPalette(view.dom.ownerDocument);
           const info = view.state.field(editorInfoField, false);
           if (info?.editor && this.editorViews.get(info.editor) !== view)
             this.editorViews.set(info.editor, view);
@@ -208,6 +217,8 @@ export default class CommentsPlugin extends Plugin {
           };
         },
         Platform.isMobileApp,
+        requireApiVersion("1.14.0"),
+        () => this.settings.visibleColors,
       ),
     ]);
     this.addCommand({
@@ -312,7 +323,22 @@ export default class CommentsPlugin extends Plugin {
     );
   }
   async onExternalSettingsChange() {
-    this.author = readAuthor(await this.loadData());
+    this.settings = readSettings(await this.loadData());
+    this.paletteStyles.update(this.settings);
+  }
+  applyPalette(document: Document) {
+    this.paletteStyles.apply(document, this.settings);
+  }
+  setSettings(settings: AnnotationSettings) {
+    this.settings = readSettings(settings);
+    this.paletteStyles.update(this.settings);
+    const snapshot = this.settings;
+    this.settingsQueue = this.settingsQueue
+      .catch(() => {})
+      .then(() => this.saveData(snapshot));
+    void this.settingsQueue.catch(
+      () => new Notice("Unable to save annotation settings."),
+    );
   }
   refresh() {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW))
@@ -426,11 +452,23 @@ export default class CommentsPlugin extends Plugin {
           const old = e.getValue(),
             next = mutate(old, fn);
           if (next !== old) {
-            const a = parse(old);
+            let from = 0,
+              oldEnd = old.length,
+              newEnd = next.length;
+            while (from < oldEnd && from < newEnd && old[from] === next[from])
+              from++;
+            while (
+              oldEnd > from &&
+              newEnd > from &&
+              old[oldEnd - 1] === next[newEnd - 1]
+            ) {
+              oldEnd--;
+              newEnd--;
+            }
             e.replaceRange(
-              next.slice(a.start),
-              e.offsetToPos(a.start),
-              e.offsetToPos(old.length),
+              next.slice(from, newEnd),
+              e.offsetToPos(from),
+              e.offsetToPos(oldEnd),
             );
           }
         }
@@ -471,10 +509,22 @@ export default class CommentsPlugin extends Plugin {
           throw new Error(
             "The note changed. Select the target again before adding a comment.",
           );
-        return [
-          ...records,
-          newComment(document, from, to, kind, body, author, color),
-        ];
+        const comment = newComment(
+          document,
+          from,
+          to,
+          kind,
+          body,
+          author,
+          color,
+        );
+        if (
+          kind === "selection" &&
+          requireApiVersion("1.14.0") &&
+          canUseNative(document, from, to, records)
+        )
+          comment.native = true;
+        return [...records, comment];
       });
       void this.show();
     }).open();
@@ -546,15 +596,15 @@ export default class CommentsPlugin extends Plugin {
     view.editor.focus();
   }
   async reading(el: HTMLElement, ctx: MarkdownPostProcessorContext) {
+    this.applyPalette(el.ownerDocument);
     const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
     if (!(file instanceof TFile)) return;
     const layer = new MarkdownRenderChild(el),
-      marks: HTMLElement[] = [];
+      cleanups: (() => void)[] = [];
     let disposed = false;
     layer.register(() => {
       disposed = true;
-      for (const mark of marks)
-        mark.replaceWith(...Array.from(mark.childNodes));
+      for (const cleanup of cleanups) cleanup();
       this.readingLayers.delete(layer);
     });
     this.readingLayers.add(layer);
@@ -586,6 +636,57 @@ export default class CommentsPlugin extends Plugin {
     if (!relevant.length) return;
     // Exact single-node quotations can open their controls in place.
     for (const c of relevant) {
+      if (c.native) {
+        // Match source order as well as quotation: repeated words must not open
+        // another annotation. Refuse ambiguous transformed Markdown.
+        const spans = [
+          ...p.document
+            .slice(sectionFrom, sectionTo)
+            .matchAll(/==(?:[🟡🔵🟢🟣🔴🟠])?([^=\n]+)==/gu),
+        ].filter((match) => match[1] === c.target.quote);
+        const index = spans.findIndex(
+          (match) =>
+            sectionFrom +
+              match.index +
+              match[0].length -
+              2 -
+              match[1].length ===
+            c.target.from,
+        );
+        // Include marks already attached in this section when finding their ordinal.
+        const all = Array.from(el.querySelectorAll<HTMLElement>("mark")).filter(
+          (mark) => mark.textContent === c.target.quote,
+        );
+        const mark = all[index];
+        if (
+          index < 0 ||
+          spans.length !== all.length ||
+          !mark ||
+          mark.dataset.commentId
+        )
+          continue;
+        const attributes = Array.from(mark.attributes).map((a) => [
+          a.name,
+          a.value,
+        ]);
+        const click = mark.onclick,
+          keydown = mark.onkeydown;
+        mark.classList.add(
+          "comments-highlight",
+          "comments-native",
+          `comments-${c.color}`,
+        );
+        this.bindReadingMark(mark, file, c);
+        cleanups.push(() => {
+          for (const attribute of Array.from(mark.attributes))
+            mark.removeAttribute(attribute.name);
+          for (const [name, value] of attributes)
+            mark.setAttribute(name, value);
+          mark.onclick = click;
+          mark.onkeydown = keydown;
+        });
+        continue;
+      }
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       let node: Node | null;
       const hits: { node: Text; index: number }[] = [];
@@ -605,25 +706,28 @@ export default class CommentsPlugin extends Plugin {
         range.setEnd(hit.node, hit.index + c.target.quote.length);
         const mark = document.adoptNode(createEl("mark"));
         mark.className = `comments-highlight comments-${c.color}`;
-        mark.dataset.commentId = c.id;
-        mark.tabIndex = 0;
-        mark.setAttribute("role", "button");
-        mark.setAttribute("aria-label", c.body || "Open highlight");
-        setAnnotationTooltip(mark);
-        mark.onclick = () => {
-          if (document.getSelection()?.isCollapsed === false) return;
-          void this.openReadingControls(file, c.id, mark);
-        };
-        mark.onkeydown = (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            void this.openReadingControls(file, c.id, mark, true);
-          }
-        };
+        this.bindReadingMark(mark, file, c);
         range.surroundContents(mark);
-        marks.push(mark);
+        cleanups.push(() => mark.replaceWith(...Array.from(mark.childNodes)));
       }
     }
+  }
+  private bindReadingMark(mark: HTMLElement, file: TFile, c: Comment) {
+    mark.dataset.commentId = c.id;
+    mark.tabIndex = 0;
+    mark.setAttribute("role", "button");
+    mark.setAttribute("aria-label", c.body || "Open highlight");
+    setAnnotationTooltip(mark);
+    mark.onclick = () => {
+      if (mark.ownerDocument.getSelection()?.isCollapsed === false) return;
+      void this.openReadingControls(file, c.id, mark);
+    };
+    mark.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        void this.openReadingControls(file, c.id, mark, true);
+      }
+    };
   }
   private async openReadingControls(
     file: TFile,
@@ -659,48 +763,13 @@ export default class CommentsPlugin extends Plugin {
           if (this.readingControls?.popup === popup)
             this.readingControls = undefined;
         },
+        () => this.settings.visibleColors,
       );
       this.readingControls = { file, popup };
       if (keyboard) popup.focusControls();
     } catch (error) {
       new Notice(error instanceof Error ? error.message : String(error));
     }
-  }
-}
-class CommentsSettings extends PluginSettingTab {
-  constructor(
-    app: CommentsPlugin["app"],
-    private plugin: CommentsPlugin,
-  ) {
-    super(app, plugin);
-  }
-  getSettingDefinitions() {
-    return [
-      {
-        name: "Comment author",
-        desc: "Stored in the Markdown file with every new comment.",
-        render: (setting: Setting) => this.configure(setting),
-      },
-    ];
-  }
-  // Older Obsidian versions call display; newer versions use searchable definitions.
-  display() {
-    this.containerEl.empty();
-    this.configure(
-      new Setting(this.containerEl)
-        .setName("Comment author")
-        .setDesc("Stored in the Markdown file with every new comment."),
-    );
-  }
-  private configure(setting: Setting) {
-    setting.addText((t) =>
-      t.setValue(this.plugin.author).onChange((value) => {
-        this.plugin.author = value.trim() || "Me";
-        void this.plugin
-          .saveData({ author: this.plugin.author })
-          .catch(() => new Notice("Unable to save annotation settings."));
-      }),
-    );
   }
 }
 class CommentModal extends Modal {
@@ -728,12 +797,7 @@ class CommentModal extends Modal {
     const details = this.contentEl.createDiv({
       cls: "comments-compose-details",
     });
-    const authorField = details.createEl("label", { text: "Author" });
     const colorField = details.createEl("label", { text: "Color" });
-    const author = authorField.createEl("input", {
-      attr: { "aria-label": "Author", placeholder: "Author" },
-    });
-    author.value = this.comment?.author || this.plugin.author;
     const color = colorField.createEl("select", {
       attr: { "aria-label": "Comment color" },
     });
@@ -758,7 +822,7 @@ class CommentModal extends Modal {
       this.save(
         text.value.trim(),
         color.value as Color,
-        author.value.trim() || "Me",
+        this.comment?.author || this.plugin.author,
       );
       this.close();
     };
@@ -783,6 +847,9 @@ function sameVisibleComment(a: Comment, b: Comment): boolean {
     a.color === b.color &&
     a.status === b.status &&
     a.kind === b.kind &&
+    a.native === b.native &&
+    a.target.before === b.target.before &&
+    a.target.after === b.target.after &&
     a.target.quote === b.target.quote &&
     a.target.originalQuote === b.target.originalQuote &&
     a.target.state === b.target.state
@@ -801,15 +868,21 @@ class CommentsView extends ItemView {
   private statusButtons = new Map<string, HTMLButtonElement>();
   private filterControl: HTMLButtonElement | undefined;
   private resetFilters: HTMLButtonElement | undefined;
-  private searchButton: HTMLButtonElement | undefined;
-  private searchWrap: HTMLElement | undefined;
-  private searchExpanded = false;
-  private count: HTMLElement | undefined;
   private searchControl: HTMLInputElement | undefined;
   private list: HTMLElement | undefined;
   private records: Comment[] = [];
   private rows = new Map<string, CommentRow>();
   private selection: string[] | undefined;
+  private checked = new SidebarSelection();
+  private shown: Comment[] = [];
+  private selectButton: HTMLButtonElement | undefined;
+  private bulkBar: HTMLElement | undefined;
+  private selectAll: HTMLInputElement | undefined;
+  private selectionCount: HTMLElement | undefined;
+  private bulkResolve: HTMLButtonElement | undefined;
+  private bulkReopen: HTMLButtonElement | undefined;
+  private bulkDelete: HTMLButtonElement | undefined;
+  private bulkBusy = false;
   constructor(
     leaf: WorkspaceLeaf,
     private plugin: CommentsPlugin,
@@ -840,6 +913,7 @@ class CommentsView extends ItemView {
     this.timer = this.timerWindow.setTimeout(() => void this.render(), 150);
   }
   async render() {
+    this.plugin.applyPalette(this.containerEl.ownerDocument);
     const token = ++this.generation,
       file = this.plugin.activeFile();
     let p: NoteSnapshot | undefined;
@@ -855,6 +929,8 @@ class CommentsView extends ItemView {
     }
     if (token !== this.generation) return;
     if (this.file !== file || this.error !== p?.error || !this.subtitle) {
+      this.checked.exit();
+      this.shown = [];
       this.file = file;
       this.error = p?.error;
       this.rows.clear();
@@ -862,55 +938,74 @@ class CommentsView extends ItemView {
       const root = this.contentEl;
       root.empty();
       root.addClass("comments-panel");
+      root.removeClass("is-selecting");
+      root.onkeydown = (event) => {
+        if (this.bulkBusy) return;
+        const target = event.target as HTMLElement;
+        if (
+          target.closest("input,textarea,[contenteditable=true]") &&
+          !target.matches('input[type="checkbox"]')
+        )
+          return;
+        if (event.key === "Escape" && this.checked.active) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.checked.exit();
+          this.syncSelection();
+          this.selectButton?.focus();
+        } else if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key.toLowerCase() === "a" &&
+          this.shown.length
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.checked.all(this.shown.map((c) => c.id));
+          this.syncSelection();
+        }
+      };
       this.statusButtons.clear();
-      const head = root.createDiv({ cls: "comments-header" }),
+      const top = root.createDiv({ cls: "comments-panel-top" });
+      const head = top.createDiv({ cls: "comments-header" }),
         heading = head.createDiv({ cls: "comments-heading" });
       heading.createEl("h2", { text: "Annotations" });
-      this.count = heading.createSpan({ cls: "comments-count" });
       const tools = head.createDiv({ cls: "comments-tools" });
-      const searchButton = (this.searchButton = tools.createEl("button", {
-        cls: "clickable-icon comments-icon",
-        attr: {
-          type: "button",
-          "aria-label": "Search comments",
-          title: "Search comments",
-        },
-      }));
-      setIcon(searchButton, "search");
-      searchButton.onclick = () => {
-        this.searchExpanded = !this.searchExpanded;
-        if (!this.searchExpanded) this.query = "";
-        this.syncControls();
-        this.renderCards();
-        if (this.searchExpanded) this.searchControl?.focus();
+      this.selectButton = tools.createEl("button", {
+        cls: "comments-select-mode",
+        text: "Select",
+        attr: { type: "button" },
+      });
+      this.selectButton.onclick = () => {
+        if (this.bulkBusy) return;
+        if (this.checked.active) this.checked.exit();
+        else this.checked.active = true;
+        this.syncSelection();
       };
       const filterButton = (this.filterControl = tools.createEl("button", {
         cls: "clickable-icon comments-icon",
         attr: {
           type: "button",
-          "aria-label": "Filter comments",
-          title: "Filter comments",
+          "aria-label": "Filter annotations",
+          title: "Filter annotations",
         },
       }));
       setIcon(filterButton, "list-filter");
       filterButton.onclick = () => this.openFilters(filterButton);
 
-      this.subtitle = root.createEl("p", {
+      this.subtitle = top.createEl("p", {
         text: file?.basename || "No note selected",
         cls: "comments-subtitle",
       });
       if (!file) {
-        searchButton.disabled = filterButton.disabled = true;
-        this.count.setText("");
+        filterButton.disabled = this.selectButton.disabled = true;
         root.createEl("p", {
-          text: "Open a Markdown note to see its comments.",
+          text: "Open a Markdown note to see its annotations.",
           cls: "comments-empty",
         });
         return;
       }
       if (p?.error) {
-        searchButton.disabled = filterButton.disabled = true;
-        this.count.setText("");
+        filterButton.disabled = this.selectButton.disabled = true;
         root.createEl("p", {
           text: p.error,
           cls: "comments-error",
@@ -918,7 +1013,30 @@ class CommentsView extends ItemView {
         });
         return;
       }
-      const statuses = root.createDiv({
+      const searchWrap = top.createDiv({ cls: "comments-search" });
+      const search = (this.searchControl = searchWrap.createEl("input", {
+        attr: {
+          type: "search",
+          placeholder: "Search annotations…",
+          "aria-label": "Search annotations",
+        },
+      }));
+      search.value = this.query;
+      search.oninput = () => {
+        this.query = search.value;
+        this.syncControls();
+        this.renderCards();
+      };
+      search.onkeydown = (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.query = "";
+          this.syncControls();
+          this.renderCards();
+        }
+      };
+      const statuses = top.createDiv({
         cls: "comments-statuses",
         attr: { role: "group", "aria-label": "Filter by status" },
       });
@@ -938,39 +1056,55 @@ class CommentsView extends ItemView {
           this.renderCards();
         };
       }
-      this.searchWrap = root.createDiv({ cls: "comments-search" });
-      const search = (this.searchControl = this.searchWrap.createEl("input", {
-        attr: {
-          type: "search",
-          placeholder: "Search comments…",
-          "aria-label": "Search comments",
-        },
-      }));
-      search.value = this.query;
-      search.oninput = () => {
-        this.query = search.value;
-        this.renderCards();
-      };
-      search.onkeydown = (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          this.query = "";
-          this.searchExpanded = false;
-          this.syncControls();
-          this.renderCards();
-          this.searchButton?.focus();
-        }
-      };
-      this.resetFilters = root.createEl("button", {
+      this.resetFilters = top.createEl("button", {
         cls: "comments-filter-summary",
-        attr: { type: "button", "aria-label": "Clear comment filters" },
+        attr: { type: "button", "aria-label": "Clear annotation filters" },
       });
-      this.resetFilters.onclick = () => {
-        this.filter = "all";
-        this.color = "all";
-        this.syncControls();
-        this.renderCards();
+      this.resetFilters.onclick = () => this.clearFilters();
+      this.bulkBar = top.createDiv({
+        cls: "comments-bulk",
+        attr: { role: "group", "aria-label": "Selected annotations" },
+      });
+      const selectLine = this.bulkBar.createDiv({
+        cls: "comments-selection-summary",
+      });
+      const allLabel = selectLine.createEl("label", {
+        cls: "comments-select-all",
+      });
+      this.selectAll = allLabel.createEl("input", {
+        attr: {
+          type: "checkbox",
+          "aria-label": "Select all shown annotations",
+        },
+      });
+      allLabel.createSpan({ text: "Select all shown" });
+      this.selectAll.onchange = () => {
+        if (this.selectAll?.checked)
+          this.checked.all(this.shown.map((c) => c.id));
+        else this.checked.clear();
+        this.syncSelection();
       };
+      this.selectionCount = selectLine.createSpan({
+        attr: { role: "status", "aria-live": "polite" },
+      });
+      const bulkActions = this.bulkBar.createDiv({
+        cls: "comments-bulk-actions",
+      });
+      this.bulkResolve = bulkActions.createEl("button", {
+        text: "Resolve",
+        attr: { type: "button" },
+      });
+      this.bulkResolve.onclick = () => void this.applyBulk("resolved");
+      this.bulkReopen = bulkActions.createEl("button", {
+        text: "Reopen",
+        attr: { type: "button" },
+      });
+      this.bulkReopen.onclick = () => void this.applyBulk("open");
+      this.bulkDelete = bulkActions.createEl("button", {
+        text: "Delete",
+        attr: { type: "button" },
+      });
+      this.bulkDelete.onclick = () => this.deleteSelected();
       this.list = root.createDiv({ cls: "comments-list" });
     }
     if (this.subtitle && this.subtitle.textContent !== file?.basename)
@@ -981,7 +1115,6 @@ class CommentsView extends ItemView {
     this.renderCards();
   }
   private syncControls() {
-    if (this.count) this.count.setText(String(this.records.length));
     for (const [value, button] of this.statusButtons) {
       const count =
         value === "all"
@@ -989,16 +1122,19 @@ class CommentsView extends ItemView {
           : this.records.filter((c) => c.status === value).length;
       const label =
         value === "all" ? "All" : value === "open" ? "Open" : "Resolved";
-      const text = `${label} ${count}`;
-      if (button.textContent !== text) button.setText(text);
-      button.setAttribute("aria-label", `${label} comments`);
+      const text = `${label}${count}`;
+      if (button.textContent !== text) {
+        button.setText(label);
+        button.createSpan({
+          cls: "comments-status-count",
+          text: String(count),
+        });
+      }
+      button.setAttribute("aria-label", `${label} annotations (${count})`);
       button.setAttribute("aria-pressed", String(this.filter === value));
     }
     if (this.searchControl && this.searchControl.value !== this.query)
       this.searchControl.value = this.query;
-    const searching = this.searchExpanded || !!this.query;
-    if (this.searchWrap) this.searchWrap.hidden = !searching;
-    this.searchButton?.setAttribute("aria-expanded", String(searching));
     const filtered = this.color !== "all" || this.filter === "detached";
     this.filterControl?.setAttribute("aria-pressed", String(filtered));
     if (this.resetFilters) {
@@ -1014,6 +1150,13 @@ class CommentsView extends ItemView {
           .join(" · ") + " ×",
       );
     }
+  }
+  private clearFilters() {
+    this.filter = "all";
+    this.color = "all";
+    this.query = "";
+    this.syncControls();
+    this.renderCards();
   }
   private openFilters(button: HTMLButtonElement) {
     const menu = new Menu();
@@ -1058,11 +1201,23 @@ class CommentsView extends ItemView {
           (this.filter === "detached" && c.target.state === "detached") ||
           c.status === this.filter) &&
         (this.color === "all" || c.color === this.color) &&
-        (!query ||
-          `${c.body} ${c.author} ${c.target.quote}`
-            .toLowerCase()
-            .includes(query)),
+        (!query || `${c.body} ${c.target.quote}`.toLowerCase().includes(query)),
     );
+    shown.sort(
+      (a, b) =>
+        Number(a.target.state === "detached") -
+          Number(b.target.state === "detached") ||
+        a.target.from - b.target.from,
+    );
+    this.shown = shown;
+    this.checked.retain(shown.map((c) => c.id));
+    const activeControl = list.ownerDocument.activeElement;
+    const focused = activeControl?.closest<HTMLElement>(".comments-card");
+    const focusedId = focused?.dataset.commentId;
+    const previousOrder = Array.from(list.children).map(
+      (node) => (node as HTMLElement).dataset.commentId,
+    );
+    const previousIndex = focusedId ? previousOrder.indexOf(focusedId) : -1;
     const ids = new Set(shown.map((c) => c.id));
     for (const [id, row] of this.rows)
       if (!ids.has(id)) {
@@ -1071,11 +1226,28 @@ class CommentsView extends ItemView {
       }
     if (!shown.length) {
       const text = this.records.length
-        ? "No comments here. Try another filter."
+        ? "No matching annotations."
         : "Select a passage to highlight it or leave a note.";
       let empty = list.querySelector<HTMLElement>(".comments-empty");
       if (!empty) empty = list.createEl("p", { cls: "comments-empty" });
-      if (empty.textContent !== text) empty.setText(text);
+      if (empty.querySelector(".comments-empty-text")?.textContent !== text) {
+        empty.empty();
+        empty.createSpan({ cls: "comments-empty-text", text });
+        if (this.records.length) {
+          const clear = empty.createEl("button", {
+            cls: "comments-clear-filters",
+            text: "Clear filters",
+            attr: { type: "button" },
+          });
+          clear.onclick = () => {
+            this.clearFilters();
+            this.searchControl?.focus();
+          };
+        }
+      }
+      if (focused && activeControl && !activeControl.isConnected)
+        this.statusButtons.get(this.filter)?.focus();
+      this.syncSelection();
       return;
     }
     list.querySelector(".comments-empty")?.remove();
@@ -1097,6 +1269,15 @@ class CommentsView extends ItemView {
       if (row.node === cursor) cursor = cursor.nextElementSibling;
       else list.insertBefore(row.node, cursor);
     }
+    if (focused && activeControl && !activeControl.isConnected) {
+      const next =
+        shown[Math.max(0, Math.min(previousIndex, shown.length - 1))];
+      this.rows
+        .get(next.id)
+        ?.node.querySelector<HTMLButtonElement>(".comments-primary")
+        ?.focus();
+    }
+    this.syncSelection();
     if (this.selection !== this.plugin.selected) {
       this.selection = this.plugin.selected;
       const selected = shown.find((c) => selection.has(c.id));
@@ -1105,6 +1286,139 @@ class CommentsView extends ItemView {
         if (node.isConnected) node.scrollIntoView({ block: "nearest" });
       }
     }
+  }
+  private syncSelection() {
+    const chosen = this.shown.filter((c) => this.checked.ids.has(c.id));
+    this.contentEl.toggleClass("is-selecting", this.checked.active);
+    this.selectButton?.setText(this.checked.active ? "Done" : "Select");
+    if (this.selectButton) {
+      this.selectButton.disabled =
+        this.bulkBusy || (!this.shown.length && !this.checked.active);
+      this.selectButton.setAttribute(
+        "aria-pressed",
+        String(this.checked.active),
+      );
+    }
+    if (this.bulkBar) this.bulkBar.hidden = !this.checked.active;
+    if (this.selectAll) {
+      this.selectAll.checked =
+        !!this.shown.length && chosen.length === this.shown.length;
+      this.selectAll.indeterminate =
+        chosen.length > 0 && chosen.length < this.shown.length;
+      this.selectAll.disabled = !this.shown.length || this.bulkBusy;
+    }
+    const countText = `${chosen.length} selected`;
+    if (this.selectionCount?.textContent !== countText)
+      this.selectionCount?.setText(countText);
+    if (this.bulkResolve)
+      this.bulkResolve.disabled =
+        this.bulkBusy || !chosen.some((c) => c.status === "open");
+    if (this.bulkReopen)
+      this.bulkReopen.disabled =
+        this.bulkBusy || !chosen.some((c) => c.status === "resolved");
+    if (this.bulkDelete)
+      this.bulkDelete.disabled = this.bulkBusy || !chosen.length;
+    for (const [id, row] of this.rows) {
+      row.node.toggleClass("is-checked", this.checked.ids.has(id));
+      const input = row.node.querySelector<HTMLInputElement>(
+        ".comments-row-check input",
+      );
+      if (input) {
+        input.checked = this.checked.ids.has(id);
+        input.disabled = this.bulkBusy;
+      }
+      for (const primary of row.node.querySelectorAll<HTMLButtonElement>(
+        ".comments-primary, .comments-edit-note",
+      )) {
+        const action = this.checked.active
+          ? "Select annotation"
+          : primary.classList.contains("comments-edit-note")
+            ? "Edit note"
+            : "Go to text";
+        primary.setAttribute("aria-description", action);
+        primary.title = action;
+        if (this.checked.active)
+          primary.setAttribute(
+            "aria-pressed",
+            String(this.checked.ids.has(id)),
+          );
+        else primary.removeAttribute("aria-pressed");
+      }
+    }
+  }
+  private async applyBulk(status: "open" | "resolved") {
+    if (!this.file || this.bulkBusy || !this.checked.ids.size) return;
+    const file = this.file,
+      ids = new Set(this.checked.ids);
+    this.bulkBusy = true;
+    this.syncSelection();
+    try {
+      const saved = await this.plugin.change(file, (records) =>
+        records.map((c) =>
+          ids.has(c.id) && c.status !== status
+            ? { ...c, status, updated: new Date().toISOString() }
+            : c,
+        ),
+      );
+      if (saved && this.file === file) {
+        this.checked.clear();
+        await this.render();
+      }
+    } finally {
+      this.bulkBusy = false;
+      this.syncSelection();
+    }
+  }
+  private deleteSelected() {
+    if (!this.file || this.bulkBusy || !this.checked.ids.size) return;
+    const file = this.file;
+    const selected = this.shown.filter((c) => this.checked.ids.has(c.id));
+    const snapshot = new Map(selected.map((c) => [c.id, JSON.stringify(c)]));
+    const modal = new Modal(this.app);
+    modal.titleEl.setText(
+      `Delete ${selected.length} annotation${selected.length === 1 ? "" : "s"}?`,
+    );
+    modal.contentEl.createEl("p", {
+      text: `This removes the selected highlights and their notes from “${file.basename}”.`,
+    });
+    const actions = modal.contentEl.createDiv({ cls: "comments-actions" });
+    const cancel = actions.createEl("button", { text: "Cancel" });
+    cancel.onclick = () => modal.close();
+    const remove = actions.createEl("button", {
+      text: "Delete annotations",
+      cls: "mod-warning",
+    });
+    remove.onclick = () => {
+      if (this.bulkBusy) return;
+      this.bulkBusy = true;
+      remove.disabled = true;
+      this.syncSelection();
+      void this.plugin
+        .change(file, (records) => {
+          for (const c of records)
+            if (snapshot.has(c.id) && snapshot.get(c.id) !== JSON.stringify(c))
+              throw new Error(
+                "An annotation changed. Review the selection before deleting.",
+              );
+          return records.filter((c) => !snapshot.has(c.id));
+        })
+        .then(async (saved) => {
+          if (saved) {
+            modal.close();
+            if (this.file === file) {
+              this.checked.clear();
+              await this.render();
+            }
+          }
+        })
+        .finally(() => {
+          this.bulkBusy = false;
+          remove.disabled = false;
+          this.syncSelection();
+        });
+    };
+    modal.open();
+    cancel.focus();
   }
   private fillRow(row: CommentRow, file: TFile) {
     const c = row.record,
@@ -1116,26 +1430,50 @@ class CommentsView extends ItemView {
       "aria-label",
       `${c.color} ${c.body ? "comment" : "highlight"}${c.status === "resolved" ? ", resolved" : ""}`,
     );
-    const target = card.createEl("button", {
-      text:
-        c.kind === "file"
-          ? "Entire file"
-          : c.target.quote || c.target.originalQuote,
-      cls: "comments-target",
+    const top = card.createDiv({ cls: "comments-card-heading" });
+    const checkboxLabel = top.createEl("label", { cls: "comments-row-check" });
+    const checkbox = checkboxLabel.createEl("input", {
+      attr: {
+        type: "checkbox",
+        "aria-label": "Select annotation",
+        "aria-description": c.body || c.target.quote || "Entire file",
+      },
     });
-    target.title = "Navigate to target";
-    target.onclick = () => void this.plugin.navigate(file, row.record);
+    checkbox.onclick = (event) => {
+      if (this.bulkBusy) return;
+      this.checked.toggle(
+        c.id,
+        this.shown.map((item) => item.id),
+        event.shiftKey,
+      );
+      this.syncSelection();
+    };
+    const content = top.createDiv({ cls: "comments-card-content" });
+    const primary = content.createEl("button", {
+      cls: "comments-primary comments-target",
+      attr: {
+        type: "button",
+        "aria-description": "Go to text",
+      },
+    });
+    const passage = sidebarPassage(c);
+    primary.createSpan({
+      cls: "comments-passage-context",
+      text: (c.kind === "file" ? "" : "“") + passage.before,
+    });
+    primary.createSpan({ cls: "comments-highlight-text", text: passage.quote });
+    primary.createSpan({
+      cls: "comments-passage-context",
+      text: passage.after + (c.kind === "file" ? "" : "”"),
+    });
+    const actions = top.createDiv({ cls: "comments-row-actions" });
     if (c.target.state === "detached")
       card.createEl("p", {
         text: "Needs reattachment",
         cls: "comments-warning",
       });
-    if (c.body) card.createEl("p", { text: c.body, cls: "comments-body" });
-    const foot = card.createDiv({ cls: "comments-row-footer" }),
-      meta = foot.createDiv({ cls: "comments-meta" });
     if (c.status === "resolved")
-      meta.createSpan({ text: "Resolved", cls: "comments-resolved" });
-    const actions = foot.createDiv({ cls: "comments-row-actions" });
+      card.createSpan({ text: "Resolved", cls: "comments-resolved" });
     const iconButton = (label: string, icon: string, fn: () => void) => {
       const b = actions.createEl("button", {
         cls: "clickable-icon comments-icon",
@@ -1149,67 +1487,91 @@ class CommentsView extends ItemView {
       void this.plugin.change(file, (rs) =>
         rs.map((x) => (x.id === row.record.id ? fn(x) : x)),
       );
-    if (!c.body) {
-      const add = iconButton("Add note", "message-square-plus", () => {
-        const current = row.record;
-        new CommentModal(
-          this.plugin,
-          "Add note",
-          current,
-          (body, color, author) =>
-            update((x) => {
-              if (x.body !== current.body || x.updated !== current.updated)
-                throw new Error("This annotation changed. Open it again.");
-              return {
-                ...x,
-                body,
-                color,
-                author,
-                updated: new Date().toISOString(),
-              };
-            }),
-        ).open();
+    const editNote = () => {
+      const current = row.record;
+      new CommentModal(
+        this.plugin,
+        current.body ? "Edit note" : "Add note",
+        current,
+        (body, color, author) =>
+          update((x) => {
+            if (x.body !== current.body || x.updated !== current.updated)
+              throw new Error("This annotation changed. Open it again.");
+            return {
+              ...x,
+              body,
+              color,
+              author,
+              updated: new Date().toISOString(),
+            };
+          }),
+      ).open();
+    };
+    const activate = (event: MouseEvent, action: () => void) => {
+      if (
+        this.checked.active ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) {
+        this.checked.toggle(
+          c.id,
+          this.shown.map((item) => item.id),
+          event.shiftKey,
+        );
+        this.syncSelection();
+      } else action();
+    };
+    primary.onclick = (event) =>
+      activate(event, () => void this.plugin.navigate(file, row.record));
+    if (c.body) {
+      const note = content.createEl("button", {
+        cls: "comments-edit-note",
+        text: c.body,
+        attr: { type: "button", "aria-description": "Edit note" },
       });
-      add.addClass("comments-add-note");
+      note.onclick = (event) => activate(event, editNote);
+    } else {
+      const context = content.createDiv({ cls: "comments-card-context" });
+      const add = context.createEl("button", {
+        cls: "comments-add-note",
+        text: "Add note",
+        attr: { type: "button" },
+      });
+      add.onclick = editNote;
     }
-    iconButton(
-      c.status === "open" ? "Resolve" : "Reopen",
-      c.status === "open" ? "check" : "undo-2",
-      () =>
-        update((x) => ({
-          ...x,
-          status: x.status === "open" ? "resolved" : "open",
-          updated: new Date().toISOString(),
-        })),
-    );
     const more = iconButton("Comment actions", "ellipsis", () => {
       const c = row.record,
         menu = new Menu();
       menu.addItem((i) =>
         i
-          .setTitle("Edit")
+          .setTitle(c.body ? "Edit note" : "Add note")
           .setIcon("pencil")
+          .onClick(editNote),
+      );
+      menu.addItem((i) =>
+        i
+          .setTitle(c.status === "open" ? "Resolve" : "Reopen")
+          .setIcon(c.status === "open" ? "check" : "undo-2")
           .onClick(() =>
-            new CommentModal(
-              this.plugin,
-              "Edit comment",
-              c,
-              (body, color, author) =>
-                update((x) => {
-                  if (x.updated !== c.updated || x.body !== c.body)
-                    throw new Error(
-                      "Comment changed while editing. Open it again.",
-                    );
-                  return {
-                    ...x,
-                    body,
-                    color,
-                    author,
-                    updated: new Date().toISOString(),
-                  };
-                }),
-            ).open(),
+            update((x) => ({
+              ...x,
+              status: x.status === "open" ? "resolved" : "open",
+              updated: new Date().toISOString(),
+            })),
           ),
+      );
+      menu.addItem((i) =>
+        i
+          .setTitle("Select")
+          .setIcon("list-checks")
+          .onClick(() => {
+            this.checked.toggle(
+              c.id,
+              this.shown.map((item) => item.id),
+            );
+            this.syncSelection();
+          }),
       );
       menu.addItem((i) =>
         i

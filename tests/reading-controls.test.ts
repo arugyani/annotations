@@ -108,7 +108,9 @@ for (const mobile of [false, true])
       document.querySelector('[role="alert"]')!.textContent!,
       /changed/,
     );
-    button("Close annotation controls").click();
+    document.body.dispatchEvent(
+      new host.window.Event("pointerdown", { bubbles: true }),
+    );
     assert.equal(closed, true);
     assert.equal(disconnected, 1);
     assert.equal(document.querySelector(".comments-reading-controls"), null);

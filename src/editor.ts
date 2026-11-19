@@ -1,6 +1,7 @@
 import { isolateHistory } from "@codemirror/commands";
 import {
   EditorState,
+  ChangeSet,
   StateEffect,
   StateField,
   Text,
@@ -22,6 +23,7 @@ import {
   type Comment,
   type Parsed,
 } from "./model";
+import { nativeChanges, refreshNative } from "./native-highlight";
 
 /** Validated state belongs to this immutable editor document, never to a file path. */
 export interface AnnotationSnapshot extends Parsed {
@@ -75,7 +77,11 @@ function readSnapshot(doc: Text): AnnotationSnapshot {
     records,
     doc.sliceString(parsed.start),
     doc,
-    records.some((c, i) => !sameTarget(c.target, parsed.records[i].target)),
+    records.some(
+      (c, i) =>
+        !sameTarget(c.target, parsed.records[i].target) ||
+        c.color !== parsed.records[i].color,
+    ),
     false,
     parsed.document,
   );
@@ -191,9 +197,13 @@ const filter = EditorState.transactionFilter.of((tr) => {
       after: source.sliceString(to, Math.min(source.length, to + 64)),
       state: "attached",
     };
-    if (sameTarget(target, c.target)) return c;
+    const updated = refreshNative(source, { ...c, target });
+    if (sameTarget(updated.target, c.target) && updated.color === c.color)
+      return c;
     dirty = true;
-    return { ...c, target };
+    if (updated.color !== c.color || updated.target.state !== c.target.state)
+      reusable = false;
+    return updated;
   });
   const footer = dirty ? serialize("", records) : before.footer;
   const insert = dirty ? Text.of(footer.split("\n")) : null;
@@ -221,15 +231,32 @@ export function changeComments(
 ): void {
   const before = view.state.field(annotationState);
   if (before.error) throw new Error(before.error);
-  const records = fn(before.records, before.document),
+  const native = nativeChanges(
+    before.document,
+    before.records,
+    fn(before.records, before.document),
+  );
+  const records = native.records,
     footer = serialize("", records),
     insert = Text.of(footer.split("\n"));
-  const expected = view.state.doc.replace(
-    before.start,
-    view.state.doc.length,
-    insert,
+  const edits: { from: number; to: number; insert: string }[] = [];
+  native.changes.iterChanges((from, to, _a, _b, text) =>
+    edits.push({ from, to, insert: text.toString() }),
   );
-  const next = snapshot(before.source, records, footer, expected);
+  const sourceChanges = ChangeSet.of(edits, view.state.doc.length);
+  const changes = sourceChanges.compose(
+    ChangeSet.of(
+      { from: native.document.length, to: sourceChanges.newLength, insert },
+      sourceChanges.newLength,
+    ),
+  );
+  const expected = changes.apply(view.state.doc);
+  const next = snapshot(
+    Text.of(native.document.split("\n")),
+    records,
+    footer,
+    expected,
+  );
   const previous = new Map(before.records.map((c) => [c.id, c.color]));
   const reveal = records
     .filter(
@@ -242,7 +269,7 @@ export function changeComments(
     )
     .map((c) => c.id);
   view.dispatch({
-    changes: { from: before.start, to: view.state.doc.length, insert },
+    changes,
     effects: [snapshotEffect.of(next), revealHighlights.of(reveal)],
     annotations: isolateHistory.of("full"),
   });
@@ -362,7 +389,7 @@ export function editorExtension(
               )
               .map((c) =>
                 Decoration.mark({
-                  class: `comments-highlight comments-${c.color}`,
+                  class: `comments-highlight comments-${c.color}${c.native ? " comments-native" : ""}`,
                   attributes: {
                     "data-comment-id": c.id,
                     "aria-label": c.body || "Open highlight",

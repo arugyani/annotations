@@ -1,4 +1,5 @@
 import { COLORS, type Color, type Comment } from "./model";
+import { PALETTE_EVENT } from "./settings";
 
 export type BindComposeKeys = (
   textarea: HTMLTextAreaElement,
@@ -23,6 +24,7 @@ export function annotationControls(
   document: Document,
   host: AnnotationControlsHost,
   bindKeys?: BindComposeKeys,
+  visibleColors: () => readonly Color[] = () => COLORS,
 ) {
   const dom = document.adoptNode(createDiv());
   dom.className = "comments-selection-tooltip";
@@ -115,12 +117,6 @@ export function annotationControls(
     update();
     textarea?.focus();
   };
-  const close = iconButton(
-    "comments-selection-close",
-    "Close annotation controls",
-    "M6 6l12 12M18 6 6 18",
-  );
-  close.onclick = () => host.close();
   dom.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !host.composing()) {
       event.preventDefault();
@@ -195,7 +191,10 @@ export function annotationControls(
   function update() {
     if (destroyed) return;
     const current = host.current();
+    const visible = new Set(visibleColors());
+    if (current) visible.add(current.color);
     for (const [color, button] of swatches) {
+      button.hidden = !visible.has(color);
       button.setAttribute("aria-pressed", String(current?.color === color));
       button.disabled = busy;
     }
@@ -207,6 +206,11 @@ export function annotationControls(
     else closePanel();
     if (save) save.disabled = busy || !textarea?.value.trim();
   }
+  const refreshPalette = () => {
+    update();
+    host.measure();
+  };
+  document.addEventListener(PALETTE_EVENT, refreshPalette);
   update();
   return {
     dom,
@@ -217,6 +221,7 @@ export function annotationControls(
     },
     destroy: () => {
       destroyed = true;
+      document.removeEventListener(PALETTE_EVENT, refreshPalette);
       closePanel();
     },
   };
@@ -231,8 +236,5 @@ export function styleMobileControls(dom: HTMLElement) {
     colors.appendChild(swatch);
   pill.prepend(colors);
   pill.querySelector(".comments-pill-separator")?.remove();
-  for (const button of pill.querySelectorAll(
-    ".comments-selection-note, .comments-selection-close",
-  ))
-    button.classList.add("mod-raised");
+  pill.querySelector(".comments-selection-note")?.classList.add("mod-raised");
 }

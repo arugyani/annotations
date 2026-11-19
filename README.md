@@ -12,9 +12,17 @@ Mark a word, a passage, a block, a section, or a complete note. Keep a highlight
 2. Select the text.
 3. Select a color from the toolbar.
 
-On desktop, the toolbar opens above or below the selected text. On mobile, it stays at the bottom of the editor, above the keyboard controls. The highlight saves immediately. A comment is optional. The five colors are yellow, blue, green, purple, and red.
+On desktop, the toolbar opens above or below the selected text. On mobile, it stays at the bottom of the editor, above the keyboard controls. The highlight saves immediately. A comment is optional. The six colors are yellow, blue, green, purple, red, and orange.
+
+On Obsidian 1.14 or later, new highlights on plain text use the native highlight format. They stay visible when Annotations is disabled. Existing annotations and complex selections keep their current format.
 
 In Live Preview, selecting rendered math annotates the whole equation.
+
+## Choose your colors
+
+Open **Settings → Annotations**. Choose **Classic**, **Soft**, or **Earth**, or select a swatch to customize its shade. Use **In pill** to show or hide that color in the toolbar.
+
+Custom shades apply while Annotations is enabled. Highlights still use Obsidian’s six native color slots. With the plugin disabled, native highlights use Obsidian’s colors.
 
 ## Add a comment
 
@@ -31,20 +39,26 @@ You can also save with **Cmd+Enter** on macOS or **Ctrl+Enter** on Windows and L
 
 1. Click or tap an existing highlight to open its toolbar.
 2. Select a color to change the highlight, or select the speech-bubble icon to edit its comment.
-3. Select **Save note** to save a comment. Select **X** to close the toolbar without removing the highlight.
+3. Select **Save note** to save a comment. Click or tap outside the toolbar to close it without removing the highlight.
 
 These controls also work in Reading view. The note stays in Reading view while you edit its annotations.
 
 ## Use the side panel
 
-Use the side panel to search and manage annotations. Open it from the command palette with **Annotations: Open sidebar**.
+Use the side panel to search and manage annotations in document order. Open it from the command palette with **Annotations: Open sidebar**.
 
-- Select a quotation to go to its text.
-- Select the search icon to find a comment.
+- Each item shows a short passage with the selected words highlighted, and the note underneath.
+- Select the passage to jump to its location in the note.
+- Type in the search field to find highlighted text or a note.
 - Select the filter icon to show one highlight color.
-- Select the check mark to mark a comment as resolved.
+- Use **… → Resolve** to mark an annotation as resolved.
 - Select **Open**, **Resolved**, or **All** to change the list.
-- Select a comment’s **…** menu to edit or delete the comment.
+- Select a note to edit it, or **Add note** to write one.
+- Use an annotation’s **…** menu to reattach or delete it.
+
+Use **Select** to manage several annotations. Check individual items or **Select all shown**, then choose **Resolve**, **Reopen**, or **Delete**. Select all applies to the current search and filters; changing filters removes hidden items from the selection. Deletion requires confirmation.
+
+On desktop, **Cmd/Ctrl+A** selects all shown items when the list has focus. **Shift-click** selects a range. **Escape** or **Done** exits selection mode. Search fields keep their standard text-selection shortcuts.
 
 If you move or delete text, its comment can show **Needs reattachment**. The comment remains available in the panel.
 

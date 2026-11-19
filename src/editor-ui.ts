@@ -1,6 +1,7 @@
 import {
   EditorSelection,
   EditorState,
+  Facet,
   StateEffect,
   StateField,
   type Extension,
@@ -16,12 +17,16 @@ import {
   type TooltipView,
 } from "@codemirror/view";
 import { mobileSelectionDock } from "./mobile-dock";
-import { newComment, type Color } from "./model";
+import { COLORS, newComment, type Color } from "./model";
 import {
   annotationControls,
   type BindComposeKeys,
 } from "./annotation-controls";
 import { annotationState, changeComments } from "./editor";
+import { canUseNative } from "./native-highlight";
+const nativeHighlightsEnabled = Facet.define<boolean, boolean>({
+  combine: (values) => values[0] ?? true,
+});
 import {
   renderedMath,
   renderedMathSelection,
@@ -261,6 +266,11 @@ export function colorSelection(
         author,
         color,
       );
+      if (
+        view.state.facet(nativeHighlightsEnabled) &&
+        canUseNative(document, session.from, session.to, records)
+      )
+        c.native = true;
       id = c.id;
       return [...records, c];
     });
@@ -272,6 +282,7 @@ function selectionToolbar(
   view: EditorView,
   author: () => string,
   bindKeys?: BindComposeKeys,
+  visibleColors?: () => readonly Color[],
 ): TooltipView {
   const document = view.dom.ownerDocument;
   let origin:
@@ -309,7 +320,18 @@ function selectionToolbar(
       color: (color) => {
         if (origin && !origin.id && currentHighlight(view))
           throw new Error("This annotation changed. Reopen it before editing.");
+        const before = view.state.field(annotationState).source;
         const id = colorSelection(view, color, author());
+        // Our syntax insertion/recoloring is not an external edit to the draft.
+        // Only advance a snapshot that was current before this operation.
+        if (origin && origin.source.eq(before)) {
+          const session = view.state.field(selectionSession);
+          origin.source = view.state.field(annotationState).source;
+          if (session) {
+            origin.from = session.from;
+            origin.to = session.to;
+          }
+        }
         if (origin && !origin.id && id) {
           const current = currentHighlight(view);
           origin.id = id;
@@ -361,6 +383,11 @@ function selectionToolbar(
             author(),
             "yellow",
           );
+          if (
+            view.state.facet(nativeHighlightsEnabled) &&
+            canUseNative(document, origin!.from, origin!.to, records)
+          )
+            c.native = true;
           id = c.id;
           return [...records, c];
         });
@@ -375,8 +402,21 @@ function selectionToolbar(
       measure: () => view.requestMeasure(),
     },
     bindKeys,
+    visibleColors,
   );
   const { dom } = controls;
+  const dismissOutside = (event: Event) => {
+    if (
+      event.target instanceof document.defaultView!.Node &&
+      !view.dom.contains(event.target) &&
+      !dom.contains(event.target)
+    )
+      dismissWithoutFocus();
+  };
+  const dismissWithoutFocus = () => {
+    if (view.state.field(selectionSession))
+      view.dispatch({ effects: activateHighlight.of(null) });
+  };
   let anchor: Rect | null = null;
   return {
     dom,
@@ -399,13 +439,24 @@ function selectionToolbar(
           : view.coordsAtPos(pos));
       return anchor ?? { top: -1e9, bottom: -1e9, left: 0, right: 0 };
     },
-    mount: () => controls.mount(),
+    mount: () => {
+      document.addEventListener("pointerdown", dismissOutside, true);
+      document.addEventListener("focusin", dismissOutside, true);
+      document.defaultView!.addEventListener("blur", dismissWithoutFocus);
+      controls.mount();
+    },
     update: () => controls.update(),
     // CodeMirror's default bounds are the window, but Obsidian clips absolute
     // tooltips at the editor pane. Constrain only our popup, not host tooltips.
     resize: false,
     positioned: (space) => {
       const pane = view.scrollDOM.getBoundingClientRect();
+      const left = Math.max(space.left, pane.left) + 8;
+      const right = Math.min(space.right, pane.right) - 8;
+      dom.style.setProperty(
+        "--comments-popup-max-width",
+        `${Math.max(0, right - left) / view.scaleX}px`,
+      );
       const top = Math.max(space.top, pane.top) + 8;
       let bottom = Math.min(space.bottom, pane.bottom) - 8;
       const status = document
@@ -428,6 +479,9 @@ function selectionToolbar(
         dom.scrollHeight > available / view.scaleY,
       );
       const rect = dom.getBoundingClientRect();
+      const nextLeft = Math.max(left, Math.min(rect.left, right - rect.width));
+      if (nextLeft !== rect.left)
+        dom.style.left = `${parseFloat(dom.style.left) + (nextLeft - rect.left) / view.scaleX}px`;
       const height = Math.min(rect.height, available);
       let nextTop = Math.max(top, Math.min(rect.top, bottom - height));
       if (rect.top < top || rect.bottom > bottom) {
@@ -445,15 +499,23 @@ function selectionToolbar(
         dom.style.top = `${parseFloat(dom.style.top) + (nextTop - rect.top) / view.scaleY}px`;
       dom.classList.add("is-positioned");
     },
-    destroy: () => controls.destroy(),
+    destroy: () => {
+      document.removeEventListener("pointerdown", dismissOutside, true);
+      document.removeEventListener("focusin", dismissOutside, true);
+      document.defaultView!.removeEventListener("blur", dismissWithoutFocus);
+      controls.destroy();
+    },
   };
 }
 export function editorUX(
   author: () => string,
   bindKeys?: BindComposeKeys,
   mobile = false,
+  nativeHighlights = true,
+  visibleColors: () => readonly Color[] = () => COLORS,
 ): Extension {
-  const create = (view: EditorView) => selectionToolbar(view, author, bindKeys);
+  const create = (view: EditorView) =>
+    selectionToolbar(view, author, bindKeys, visibleColors);
   const tooltip = StateField.define<Tooltip | null>({
     create: (state) => makeTooltip(state),
     update(value, tr) {
@@ -497,6 +559,7 @@ export function editorUX(
     };
   }
   return [
+    nativeHighlightsEnabled.of(nativeHighlights),
     storedDataVisible,
     footerPresentation,
     proseSelection,
@@ -506,7 +569,7 @@ export function editorUX(
     EditorView.domEventHandlers({
       pointerdown(event, view) {
         if (
-          view.state.field(selectionSession)?.reopened &&
+          view.state.field(selectionSession) &&
           !(event.target as Element).closest(
             ".comments-highlight, .comments-selection-tooltip",
           )
